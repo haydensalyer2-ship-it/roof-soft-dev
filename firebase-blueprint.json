@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "companyName": { "type": "string" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A roofing/inspection project attached to a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "repName": { "type": "string" },
+        "customer": {
+          "type": "object",
+          "properties": {
+            "firstName": { "type": "string" },
+            "lastName": { "type": "string" },
+            "phone": { "type": "string" },
+            "email": { "type": "string" },
+            "address": { "type": "string" },
+            "city": { "type": "string" },
+            "state": { "type": "string" },
+            "zip": { "type": "string" }
+          }
+        },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "damageReport": {
+          "type": "object",
+          "properties": {
+            "inspectionDate": { "type": "string" },
+            "inspectorName": { "type": "string" },
+            "roofAgeEstimate": { "type": "number" },
+            "roofType": { "type": "string" },
+            "notes": { "type": "string" },
+            "photosUploaded": { "type": "number" }
+          }
+        },
+        "claim": {
+          "type": "object",
+          "properties": {
+            "insuranceCompany": { "type": "string" },
+            "claimNumber": { "type": "string" },
+            "policyNumber": { "type": "string" },
+            "dateOfLoss": { "type": "string" },
+            "status": { "type": "string" },
+            "rcv": { "type": "number" },
+            "acv": { "type": "number" },
+            "depreciation": { "type": "number" },
+            "deductible": { "type": "number" },
+            "supplementAmount": { "type": "number" },
+            "totalCollected": { "type": "number" }
+          }
+        }
+      },
+      "required": ["userId", "customer", "status", "createdAt", "updatedAt"]
+    },
+    "TeamMember": {
+      "title": "Team Member",
+      "description": "A representative or manager in the organization",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "firstName", "lastName", "email", "role", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile and settings"
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "A project entity tied to an owner via userId"
+    },
+    "/team/{teamId}": {
+      "schema": { "$ref": "#/entities/TeamMember" },
+      "description": "Team member representing the organization's workforce"
+    }
+  }
+}

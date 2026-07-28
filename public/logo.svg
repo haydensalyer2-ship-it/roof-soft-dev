@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#737373"/>
+    </linearGradient>
+    <linearGradient id="diamondGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#a3a3a3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background: Slate black void for seamless homescreen integration -->
+  <rect width="512" height="512" fill="#000000" />
+
+  <!-- The Rafter Pattern (Structural Canopy with flatted architectural eaves) -->
+  <path d="M 256 100 L 60 296 L 140 296 L 256 180 L 372 296 L 452 296 Z" fill="url(#mainGrad)" />
+
+  <!-- The Core (AI/Intelligence Data Point) -->
+  <path d="M 256 220 L 316 280 L 256 340 L 196 280 Z" fill="url(#diamondGrad)" />
+  
+  <!-- Sub-Core (Processing logic point) -->
+  <path d="M 256 360 L 280 384 L 256 408 L 232 384 Z" fill="#404040" />
+</svg>

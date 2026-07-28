@@ -1,0 +1,6 @@
+{
+  "name": "Rafter AI",
+  "description": "A roofing CRM tailored for damage reports, inspections, and insurance claim tracking.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}

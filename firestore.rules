@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprint for User
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'createdAt'])
+        && data.email is string
+        && data.email.size() > 0
+        && data.email.size() <= 200
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint for Project
+    function isValidProject(data) {
+      return data.keys().hasAll(['userId', 'customer', 'status', 'createdAt', 'updatedAt'])
+        && data.userId is string
+        && data.status is string
+        && data.status.size() > 0
+        && data.status.size() <= 50
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint for TeamMember
+    function isValidTeamMember(data) {
+      return data.keys().hasAll(['userId', 'firstName', 'lastName', 'email', 'role', 'status', 'createdAt'])
+        && data.userId is string
+        && data.firstName is string
+        && data.firstName.size() <= 50
+        && data.lastName is string
+        && data.lastName.size() <= 50
+        && data.email is string
+        && data.email.size() <= 200
+        && data.role is string
+        && data.status is string
+        && data.createdAt is string; // ISO string used in front end
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow create: if isSignedIn() 
+        && isValidId(userId) 
+        && request.auth.uid == userId 
+        && isValidUser(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if isSignedIn() 
+        && isValidId(userId) 
+        && request.auth.uid == userId 
+        && isValidUser(incoming())
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if false; // Users shouldn't be deleted easily
+    }
+
+    // Projects Collection
+    match /projects/{projectId} {
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      
+      // Create Project
+      allow create: if isSignedIn();
+        
+      // Update Project
+      allow update: if isSignedIn();
+        
+      // Delete Project
+      allow delete: if isSignedIn()
+        && isValidId(projectId);
+    }
+
+    // Team Collection
+    match /team/{teamId} {
+      allow read: if isSignedIn() && isValidId(teamId);
+      allow list: if isSignedIn();
+        
+      allow create: if isSignedIn()
+        && isValidId(teamId)
+        && isValidTeamMember(incoming());
+        
+      allow update: if isSignedIn()
+        && isValidId(teamId)
+        && incoming().userId == existing().userId
+        && incoming().firstName is string && incoming().firstName.size() <= 50
+        && incoming().lastName is string && incoming().lastName.size() <= 50
+        && incoming().email is string && incoming().email.size() <= 200
+        && incoming().role is string
+        && incoming().status is string;
+        
+      allow delete: if isSignedIn()
+        && isValidId(teamId);
+    }
+
+    // Validation Blueprint for Knock
+    function isValidKnock(data) {
+      return data.keys().hasAll(['userId', 'lat', 'lng', 'status', 'createdAt'])
+        && data.userId is string
+        && data.lat is number
+        && data.lng is number
+        && data.status is string
+        && data.status.size() > 0
+        && data.status.size() <= 50
+        && data.createdAt is timestamp;
+    }
+
+
+    // Knocks Collection
+    match /knocks/{knockId} {
+      // In this demo, managers need to see all knocks.
+      // So we allow list/get if signed in. In a real app we'd restrict by org.
+      allow get: if isSignedIn() && isValidId(knockId);
+      allow list: if isSignedIn();
+      
+      allow create: if isSignedIn()
+        && isValidId(knockId)
+        && isValidKnock(incoming())
+        && (!incoming().keys().hasAny(['repName']) || (incoming().repName is string && incoming().repName.size() <= 100))
+        && (!incoming().keys().hasAny(['notes']) || (incoming().notes is string && incoming().notes.size() <= 1000))
+        && (!incoming().keys().hasAny(['address']) || (incoming().address is string && incoming().address.size() <= 200))
+        && incoming().createdAt == request.time;
+        
+      allow update: if isSignedIn()
+        && isValidId(knockId)
+        && isValidKnock(incoming())
+        && (!incoming().keys().hasAny(['repName']) || (incoming().repName is string && incoming().repName.size() <= 100))
+        && (!incoming().keys().hasAny(['notes']) || (incoming().notes is string && incoming().notes.size() <= 1000))
+        && (!incoming().keys().hasAny(['address']) || (incoming().address is string && incoming().address.size() <= 200))
+        && incoming().createdAt == existing().createdAt;
+        
+      allow delete: if isSignedIn()
+        && isValidId(knockId);
+    }
+
+  }
+}
