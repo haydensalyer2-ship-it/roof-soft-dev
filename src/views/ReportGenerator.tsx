@@ -114,7 +114,7 @@ export function ReportGenerator({
     try {
             document.body.style.overflow = 'visible';
       const mainEl = document.querySelector('main');
-      const layoutEl = document.querySelector<HTMLElement>('.flex.h-screen');
+      const layoutEl = document.querySelector('.flex.h-screen');
       if (mainEl) mainEl.style.overflow = 'visible';
       if (layoutEl) layoutEl.style.overflow = 'visible';
       if (layoutEl) layoutEl.style.height = 'auto';
