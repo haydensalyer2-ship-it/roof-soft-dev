@@ -14,6 +14,19 @@ body {
   padding: 0;
 }
 
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
+
+html[data-density="compact"] {
+  font-size: 15px;
+}
+
 /* Base leaflet overrides for dark UI */
 .leaflet-container {
   background-color: #0a0a0a !important;
@@ -41,4 +54,3 @@ body {
 .leaflet-popup-tip {
   background-color: #262626 !important;
 }
-
