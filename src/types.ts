@@ -39,6 +39,12 @@ export interface DamageReport {
   collateralDamage: CollateralItem[];
   notes: string;
   photosUploaded: number;
+  /** AI-authored fields used by the instant report builder. */
+  damageSummary?: string;
+  recommendation?: string;
+  damageTypes?: string[];
+  createdAt?: string;
+  status?: 'draft' | 'ready';
 }
 
 export interface InsuranceClaim {
@@ -92,6 +98,7 @@ export interface Project {
   createdAt: any;
   updatedAt?: any;
   damageReport?: DamageReport;
+  damageReports?: DamageReport[];
   claim?: InsuranceClaim;
   documents?: ProjectDocument[];
 }

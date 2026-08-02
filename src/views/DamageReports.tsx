@@ -1,134 +1,53 @@
-import { Project } from '../types';
-import { Search, Filter, ShieldAlert, ChevronRight, FileBox, Camera } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Calendar, ChevronRight, Download, FileText, Plus, Search, Sparkles } from 'lucide-react';
+import { DamageReport, Project } from '../types';
 
 interface DamageReportsProps {
   projects: Project[];
   onNavigate: (view: string, id?: string) => void;
 }
 
+type ReportRow = { project: Project; report: DamageReport };
+
 export function DamageReports({ projects, onNavigate }: DamageReportsProps) {
-  const projectsWithReports = projects.filter(p => p.damageReport);
+  const [query, setQuery] = useState('');
+  const reports = useMemo(() => projects.flatMap(project => {
+    const history = project.damageReports?.length ? project.damageReports : (project.damageReport ? [project.damageReport] : []);
+    return history.map(report => ({ project, report }));
+  }).sort((a, b) => new Date(b.report.createdAt || b.report.inspectionDate).getTime() - new Date(a.report.createdAt || a.report.inspectionDate).getTime()), [projects]);
+  const visible = reports.filter(({ project }) => `${project.customer.firstName} ${project.customer.lastName} ${project.customer.address}`.toLowerCase().includes(query.toLowerCase()));
 
   return (
-    <div className="p-4 max-w-7xl mx-auto w-full">
-      <div className="sm:flex sm:items-center sm:justify-between mb-4">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto w-full">
+      <div className="rounded-3xl border border-[#262626] bg-gradient-to-br from-emerald-400/10 via-[#111] to-[#111] p-6 md:p-8 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-xl font-bold text-white">Damage Reports</h1>
-          <p className="text-[13px] text-[#a3a3a3] mt-1">Review inspection data, test squares, and collateral damage.</p>
+          <div className="flex items-center gap-2 text-emerald-300 text-[11px] font-bold uppercase tracking-widest mb-3"><Sparkles className="h-4 w-4" /> AI-powered reporting</div>
+          <h1 className="text-3xl font-semibold tracking-tight text-white">Damage reports, instantly.</h1>
+          <p className="text-sm text-[#a3a3a3] mt-2 max-w-xl">Upload inspection photos and AI creates a polished, lead-linked report your homeowner can understand.</p>
         </div>
-        <div className="mt-4 sm:mt-0 flex gap-3">
-          <button className="bg-[#171717] hover:bg-[#262626] text-white border border-[#262626] px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-            Export All
-          </button>
-          <button onClick={() => onNavigate('generate_report')} className="bg-white text-black hover:bg-neutral-300 px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-            Create PDF Report
-          </button>
-        </div>
+        <button onClick={() => onNavigate('generate_report')} className="shrink-0 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-black h-12 px-5 font-bold text-sm flex items-center justify-center gap-2"><Plus className="h-4 w-4" /> New instant report</button>
       </div>
 
-      <div className="bg-[#171717] shadow-sm rounded-2xl border border-[#262626] overflow-hidden">
-        <div className="p-4 border-b border-[#262626] flex flex-col sm:flex-row gap-4 justify-between bg-[#171717]">
-          <div className="relative max-w-sm w-full">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-[#a3a3a3]" />
-            </div>
-            <input
-              type="text"
-              className="block w-full pl-10 pr-3 py-2 border border-[#262626] rounded-lg text-sm placeholder-[#a3a3a3] text-white bg-[#0a0a0a] focus:outline-none focus:ring-1 focus:ring-[#ffffff] focus:border-white"
-              placeholder="Search reports by customer or inspector..."
-            />
-          </div>
-          <button className="flex items-center px-3 py-2 border border-[#262626] rounded-lg text-sm font-semibold text-[#a3a3a3] hover:text-white hover:bg-[#0a0a0a] bg-[#171717] shadow-sm transition-colors">
-            <Filter className="h-4 w-4 mr-2 opacity-70" />
-            Filter Date
-          </button>
-        </div>
-        
-        <div className="overflow-x-auto w-full">
-          <table className="min-w-full divide-y divide-[#262626]">
-            <thead className="bg-[#0a0a0a]/50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-[11px] uppercase tracking-[0.05em] text-[#a3a3a3] font-semibold">
-                  Property
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-[11px] uppercase tracking-[0.05em] text-[#a3a3a3] font-semibold">
-                  Inspection Details
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-[11px] uppercase tracking-[0.05em] text-[#a3a3a3] font-semibold">
-                  Damage Summary
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-[11px] uppercase tracking-[0.05em] text-[#a3a3a3] font-semibold">
-                  Media
-                </th>
-                <th scope="col" className="relative px-6 py-3">
-                  <span className="sr-only">View</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-[#171717] divide-y divide-[#262626]">
-              {projectsWithReports.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-[#a3a3a3]">
-                    <ShieldAlert className="h-8 w-8 mx-auto mb-3 opacity-50" />
-                    <p className="text-[13px] font-medium">No damage reports found.</p>
-                  </td>
-                </tr>
-              ) : (
-                projectsWithReports.map((project) => {
-                  const report = project.damageReport!;
-                  const totalHail = report.testSquares.reduce((sum, ts) => sum + ts.hailHits, 0);
-                  const totalWind = report.testSquares.reduce((sum, ts) => sum + ts.windDamagedShingles, 0);
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="rounded-2xl border border-[#262626] bg-[#111] p-4"><div className="text-2xl font-semibold text-white">{reports.length}</div><div className="text-xs text-[#777] mt-1">Reports saved</div></div>
+        <div className="rounded-2xl border border-[#262626] bg-[#111] p-4"><div className="text-2xl font-semibold text-white">{new Set(reports.map(item => item.project.id)).size}</div><div className="text-xs text-[#777] mt-1">Leads with reports</div></div>
+      </div>
 
-                  return (
-                    <tr 
-                      key={project.id} 
-                      className="hover:bg-[#0a0a0a]/50 cursor-pointer transition-colors"
-                      onClick={() => onNavigate('project_detail', project.id)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-[13px] font-medium text-white">
-                          {project.customer.address}
-                        </div>
-                        <div className="text-[11px] text-[#a3a3a3] mt-0.5">
-                          {project.customer.firstName} {project.customer.lastName}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-[13px] text-white">{new Date(report.inspectionDate).toLocaleDateString()}</div>
-                        <div className="text-[11px] text-[#a3a3a3] mt-0.5">By {report.inspectorName}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          {totalHail > 0 && (
-                            <span className="inline-flex items-center text-[11px] font-medium text-white bg-white/10 px-2 py-0.5 rounded border border-white/20">
-                              <FileBox className="h-3 w-3 mr-1" />
-                              {totalHail} Hail
-                            </span>
-                          )}
-                          {totalWind > 0 && (
-                            <span className="inline-flex items-center text-[11px] font-medium text-[#d4d4d4] bg-[#d4d4d4]/10 px-2 py-0.5 rounded border border-[#d4d4d4]/20">
-                              <ShieldAlert className="h-3 w-3 mr-1" />
-                              {totalWind} Wind
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-[13px] text-[#a3a3a3]">
-                        <div className="flex items-center">
-                          <Camera className="h-4 w-4 mr-1.5 opacity-70" />
-                          {report.photosUploaded} Photos
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <ChevronRight className="h-5 w-5 text-[#262626] ml-auto" />
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+      <div className="rounded-2xl border border-[#262626] bg-[#111] overflow-hidden">
+        <div className="p-4 border-b border-[#262626] flex items-center gap-3">
+          <Search className="h-4 w-4 text-[#777]" />
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search homeowner or property…" className="w-full bg-transparent text-sm text-white placeholder:text-[#666] outline-none" />
         </div>
+        {visible.length === 0 ? (
+          <div className="py-16 px-6 text-center"><div className="h-12 w-12 rounded-2xl bg-emerald-400/10 grid place-items-center mx-auto mb-4"><FileText className="h-6 w-6 text-emerald-400" /></div><h2 className="text-white font-semibold">{reports.length ? 'No matching reports' : 'Your reports will show up here'}</h2><p className="text-xs text-[#777] mt-2">Create one from photos in just a few clicks.</p></div>
+        ) : visible.map(({ project, report }, index) => (
+          <button key={`${project.id}-${report.id}-${index}`} onClick={() => onNavigate('generate_report', project.id)} className="w-full p-4 md:p-5 border-b last:border-0 border-[#262626] hover:bg-white/[.03] text-left flex items-center gap-4 transition-colors">
+            <div className="h-11 w-11 rounded-xl bg-emerald-400/10 grid place-items-center shrink-0"><FileText className="h-5 w-5 text-emerald-400" /></div>
+            <div className="min-w-0 flex-1"><div className="font-semibold text-sm text-white truncate">{project.customer.firstName} {project.customer.lastName}</div><div className="text-xs text-[#888] truncate mt-1">{project.customer.address}</div></div>
+            <div className="hidden sm:block text-right"><div className="flex items-center justify-end gap-1.5 text-xs text-[#aaa]"><Calendar className="h-3.5 w-3.5" /> {new Date(report.createdAt || report.inspectionDate).toLocaleDateString()}</div><div className="text-[10px] text-[#666] mt-1">{report.photosUploaded} photos · {report.inspectorName}</div></div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-white"><Download className="h-4 w-4" /><span className="hidden md:inline">Open & download</span><ChevronRight className="h-4 w-4 text-[#666]" /></div>
+          </button>
+        ))}
       </div>
     </div>
   );
