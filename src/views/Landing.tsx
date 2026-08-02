@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ArrowRight, BarChart3, Bot, Check, ChevronRight, ClipboardCheck, FileText,
-  Layers3, Loader2, Map, Menu, ShieldCheck, Sparkles, Users, X, Zap,
+  Loader2, Map, Menu, ShieldCheck, Sparkles, Users, X, Zap,
 } from 'lucide-react';
 import { auth, googleProvider } from '../lib/firebase';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
@@ -62,7 +62,7 @@ export function Landing() {
     <div className="landing-shell">
       <nav className="landing-nav" aria-label="Main navigation">
         <a href="#top" className="landing-logo" aria-label="Rafter home">
-          <span className="landing-logo-mark"><Layers3 /></span><span>RAFTER</span>
+          <span className="landing-logo-mark"><img src="/logo.svg" alt="" /></span><span>RAFTER <b>AI</b></span>
         </a>
         <div className="landing-nav-links">
           <a href="#platform">Platform</a><a href="#workflow">How it works</a><a href="#results">Why Rafter</a>
@@ -93,7 +93,7 @@ export function Landing() {
             <div className="stage-orbit orbit-one" /><div className="stage-orbit orbit-two" />
             <div className="dashboard-preview">
               <div className="preview-sidebar">
-                <div className="preview-brand"><Layers3 /></div>
+                <div className="preview-brand"><img src="/logo.svg" alt="" /></div>
                 {[0,1,2,3,4].map(i => <span key={i} className={i === 0 ? 'active' : ''} />)}
               </div>
               <div className="preview-main">
@@ -148,7 +148,7 @@ export function Landing() {
           </div>
         </section>
       </main>
-      <footer><a href="#top" className="landing-logo"><span className="landing-logo-mark"><Layers3/></span><span>RAFTER</span></a><p>Built for the people building what's next.</p><span>© {new Date().getFullYear()} RAFTER AI</span></footer>
+      <footer><a href="#top" className="landing-logo"><span className="landing-logo-mark"><img src="/logo.svg" alt="" /></span><span>RAFTER <b>AI</b></span></a><p>Built for the people building what's next.</p><span>© {new Date().getFullYear()} RAFTER AI</span></footer>
     </div>
   );
 }
