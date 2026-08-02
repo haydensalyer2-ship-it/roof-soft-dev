@@ -1,7 +1,7 @@
 import {
-  Bell, Building2, Check, CheckCircle2, ChevronRight, CreditCard, Download,
-  Eye, EyeOff, FileText, ImagePlus, LogOut, Mail, Moon,
-  Palette, RefreshCw, Shield, Trash2, UploadCloud, User, Wallet,
+  Bell, Building2, CheckCircle2, ChevronRight, Download,
+  Eye, EyeOff, FileText, ImagePlus, LogOut, Mail,
+  RefreshCw, Shield, Trash2, UploadCloud, User, Wallet,
 } from 'lucide-react';
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { sendPasswordResetEmail, signOut, updateProfile } from 'firebase/auth';
@@ -20,7 +20,7 @@ interface SettingsProps {
   repRole: string; setRepRole: (value: string) => void;
 }
 
-type TabId = 'profile' | 'organization' | 'notifications' | 'security' | 'billing' | 'appearance';
+type TabId = 'profile' | 'organization' | 'notifications' | 'security' | 'billing';
 type Notice = { kind: 'success' | 'error'; text: string } | null;
 
 const inputClass = 'w-full rounded-lg border border-[#333] bg-[#0a0a0a] px-3 py-2.5 text-[13px] text-white outline-none transition focus:border-white focus:ring-1 focus:ring-white placeholder:text-[#525252]';
@@ -36,9 +36,6 @@ const defaultPreferences = {
   testSquare: '10x10',
   autoSync: true,
   carrierExports: true,
-  theme: 'dark',
-  density: 'comfortable',
-  reduceMotion: false,
 };
 
 type Preferences = typeof defaultPreferences;
@@ -97,11 +94,6 @@ export function Settings(props: SettingsProps) {
   const noticeTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
-  useEffect(() => {
-    document.documentElement.dataset.density = preferences.density;
-    document.documentElement.dataset.reduceMotion = String(preferences.reduceMotion);
-    document.documentElement.dataset.theme = preferences.theme;
-  }, [preferences]);
 
   const flash = (text: string, kind: Notice['kind'] = 'success') => {
     setNotice({ text, kind });
@@ -177,7 +169,6 @@ export function Settings(props: SettingsProps) {
     { id: 'notifications' as const, icon: Bell, label: 'Notifications', description: 'Alerts and emails' },
     { id: 'security' as const, icon: Shield, label: 'Security', description: 'Password and sessions' },
     { id: 'billing' as const, icon: Wallet, label: 'Billing & plan', description: 'Plan and receipts' },
-    { id: 'appearance' as const, icon: Palette, label: 'Appearance', description: 'Display preferences' },
   ];
 
   return <div className="mx-auto w-full max-w-6xl p-4 md:p-6 lg:p-8">
@@ -242,10 +233,6 @@ export function Settings(props: SettingsProps) {
           <Card title="Billing history" description="Download a receipt for your latest plan payment."><div className="flex items-center justify-between gap-4 rounded-xl border border-[#262626] bg-[#0a0a0a] p-4"><div className="flex items-center gap-3"><span className="rounded-lg border border-[#333] p-2"><FileText className="h-5 w-5 text-[#a3a3a3]" /></span><div><p className="text-sm font-semibold text-white">Professional plan</p><p className="mt-1 text-xs text-[#737373]">Latest billing receipt · $99.00</p></div></div><button onClick={downloadInvoice} aria-label="Download latest billing receipt" className="rounded-lg border border-[#333] p-2 text-[#a3a3a3] hover:text-white"><Download className="h-4 w-4" /></button></div></Card>
         </>}
 
-        {activeTab === 'appearance' && <>
-          <Card title="Theme" description="Rafter AI uses a high-contrast theme designed for field work."><div className="relative flex min-h-28 max-w-xs flex-col justify-between rounded-xl border border-white bg-white/10 p-4 text-left"><Moon className="h-5 w-5 text-[#a3a3a3]" /><span className="text-sm font-semibold text-white">Dark</span><Check className="absolute right-3 top-3 h-4 w-4" /></div></Card>
-          <Card title="Display" description="Tune spacing and motion for the way you work."><SettingRow title="Interface density" description="Compact mode fits more project data on screen."><select className="rounded-lg border border-[#333] bg-[#0a0a0a] px-3 py-2 text-xs text-white outline-none" value={preferences.density} onChange={e => updatePreference('density', e.target.value)}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></SettingRow><SettingRow title="Reduce motion" description="Minimize transitions and interface animation."><Toggle label="Reduce motion" checked={preferences.reduceMotion} onChange={() => updatePreference('reduceMotion', !preferences.reduceMotion)} /></SettingRow></Card>
-        </>}
       </main>
     </div>
   </div>;
