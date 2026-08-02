@@ -3,9 +3,9 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaf
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { db, auth } from '../lib/firebase';
-import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { Knock, KnockStatus } from '../types';
-import { MapPin, Navigation, Home, Target, Clock, MessageSquare, ClipboardCheck, Loader2, X, Play, Square, Activity } from 'lucide-react';
+import { Navigation, Home, MessageSquare, ClipboardCheck, Loader2, X, Activity, MousePointerClick } from 'lucide-react';
 
 const createIcon = (color: string) => L.divIcon({
   html: `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.4);"></div>`,
@@ -260,9 +260,9 @@ export function DoorKnocker() {
   }
 
   return (
-    <div className="relative h-[calc(100vh-4rem)] w-full flex flex-col">
+    <div className="door-knocker-shell">
       {/* Top Banner KPI Bar */}
-      <div className="z-[400] bg-[#171717] border-b border-[#262626] p-4 flex-shrink-0">
+      <div className="door-knocker-summary">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4 w-full md:w-auto">
              <div className="flex items-center text-white font-black uppercase tracking-widest text-lg font-mono">
@@ -288,7 +288,7 @@ export function DoorKnocker() {
         </div>
       </div>
 
-      <div className="flex-1 relative">
+      <div className="door-knocker-map">
         <MapContainer 
           center={position} 
           zoom={18} 
@@ -335,12 +335,22 @@ export function DoorKnocker() {
           )}
         </MapContainer>
 
+        {!newKnockCoords && (
+          <div className="door-map-hint">
+            <MousePointerClick />
+            <span><strong>Tap any home</strong> to log an outcome</span>
+          </div>
+        )}
+
         {newKnockCoords && (
-          <div className="absolute bottom-0 left-0 right-0 z-[1000] p-4 bg-[#171717] border-t border-[#262626] rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom">
+          <div className="door-knock-sheet">
             <div className="max-w-md mx-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-white font-bold">{selectedKnockId ? 'Update Activity' : 'Log Activity'}</h3>
-                <button onClick={() => { setNewKnockCoords(null); setSelectedKnockId(null); setSelectedStatus(null); setKnockNotes(''); setKnockAddress(''); }} className="p-2 bg-[#262626] rounded-full text-white">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#737373]">Door outcome</div>
+                  <h3 className="text-white font-bold mt-1">{selectedKnockId ? 'Update activity' : 'Log activity'}</h3>
+                </div>
+                <button type="button" aria-label="Close activity form" onClick={() => { setNewKnockCoords(null); setSelectedKnockId(null); setSelectedStatus(null); setKnockNotes(''); setKnockAddress(''); }} className="p-2 bg-[#262626] rounded-full text-white hover:bg-[#404040] transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -352,8 +362,10 @@ export function DoorKnocker() {
                   return (
                     <button
                       key={status}
+                      type="button"
                       onClick={() => setSelectedStatus(status)}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border ${isSelected ? 'border-white bg-[#262626]' : 'border-[#404040] bg-[#0a0a0a]'} transition-all`}
+                      aria-pressed={isSelected}
+                      className={`door-status-button ${isSelected ? 'is-selected' : ''}`}
                     >
                       <Icon className="w-5 h-5 mb-2" style={{ color: statusColors[status] }} />
                       <span className="text-[10px] text-white font-bold uppercase tracking-wider text-center">
@@ -370,20 +382,22 @@ export function DoorKnocker() {
                   value={knockAddress}
                   onChange={(e) => setKnockAddress(e.target.value)}
                   placeholder="House/Street Address (optional)"
-                  className="w-full bg-[#0a0a0a] border border-[#404040] rounded-xl p-3 text-white text-sm focus:outline-none focus:border-white"
+                  aria-label="House or street address"
+                  className="door-field"
                 />
                 <textarea
                   value={knockNotes}
                   onChange={(e) => setKnockNotes(e.target.value)}
                   placeholder="Notes..."
-                  className="w-full bg-[#0a0a0a] border border-[#404040] rounded-xl p-3 text-white text-sm focus:outline-none focus:border-white h-20"
+                  aria-label="Door knock notes"
+                  className="door-field h-20 resize-none"
                 />
               </div>
 
               <button
                 onClick={handleSaveKnock}
                 disabled={!selectedStatus || isSaving}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl flex items-center justify-center transition-all"
+                className="door-save-button"
               >
                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : (selectedKnockId ? 'Update Door Knock' : 'Save Door Knock')}
               </button>
@@ -392,6 +406,9 @@ export function DoorKnocker() {
         )}
 
         <button 
+          type="button"
+          aria-label="Center map on my location"
+          title="Center on my location"
           onClick={() => {
             const fallback = () => {
               fetch('https://get.geojs.io/v1/ip/geo.json')
@@ -409,7 +426,7 @@ export function DoorKnocker() {
               fallback();
             }
           }}
-          className="absolute bottom-6 right-6 z-[400] w-14 h-14 bg-white/10 backdrop-blur border border-white/20 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-white/20 transition-all"
+          className="door-location-button"
         >
           <Navigation className="w-6 h-6" />
         </button>
