@@ -10,8 +10,8 @@ import { Settings } from './views/Settings';
 import { ReportGenerator } from './views/ReportGenerator';
 import { Landing } from './views/Landing';
 import { AdminDashboard } from './views/AdminDashboard';
-import { DoorKnocker } from './views/DoorKnocker';
-import { KnockManager } from './views/KnockManager';
+import { DoorKnockerWorkspace } from './views/DoorKnockerWorkspace';
+import { KnockAnalytics } from './views/KnockAnalytics';
 import { mockProjects as initialMockProjects } from './store/mockData';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
@@ -194,10 +194,10 @@ export default function App() {
         />
       )}
       {currentView === 'door_knocker' && (
-        <DoorKnocker />
+        <DoorKnockerWorkspace />
       )}
       {currentView === 'knock_manager' && (
-        <KnockManager onNavigate={handleNavigate} />
+        <KnockAnalytics onNavigate={handleNavigate} />
       )}
       {currentView === 'admin_dashboard' && (
         <AdminDashboard projects={projects} onNavigate={handleNavigate} />
