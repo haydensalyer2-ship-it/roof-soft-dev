@@ -28,6 +28,12 @@ async function startServer() {
   console.log("GEMINI_API_KEY from env:", process.env.GEMINI_API_KEY ? `Set, length = ${process.env.GEMINI_API_KEY.length}` : "Unset directly");
 
   app.use(express.json({ limit: '50mb' }));
+  // Allow Firebase's OAuth popup to communicate back to the opener while
+  // retaining cross-origin isolation from unrelated windows.
+  app.use((_req, res, next) => {
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    next();
+  });
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });

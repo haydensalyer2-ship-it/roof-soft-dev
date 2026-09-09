@@ -4,7 +4,28 @@ import {
   Loader2, Map, Menu, ShieldCheck, Sparkles, Users, X, Zap,
 } from 'lucide-react';
 import { auth, googleProvider } from '../lib/firebase';
-import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import type { AuthError } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+} from 'firebase/auth';
+
+const googleAuthErrorMessage = (error: unknown) => {
+  const code = (error as Partial<AuthError>)?.code;
+
+  if (code === 'auth/unauthorized-domain') {
+    return `Google sign-in is not enabled for ${window.location.hostname}. Add this exact hostname to Firebase Authentication → Settings → Authorized domains.`;
+  }
+  if (code === 'auth/popup-closed-by-user') return 'The Google sign-in window was closed before authentication finished.';
+  if (code === 'auth/cancelled-popup-request') return 'A Google sign-in window is already open.';
+  if (code === 'auth/account-exists-with-different-credential') return 'An account already exists with this email. Sign in using the original method first.';
+  if (code === 'auth/network-request-failed') return 'Google sign-in could not reach Firebase. Check your connection and try again.';
+
+  return error instanceof Error ? error.message : 'Google sign-in was unsuccessful.';
+};
 
 const features = [
   { icon: Bot, number: '01', title: 'AI damage reports', copy: 'Turn field photos and inspection notes into polished, carrier-ready reports in minutes—not hours.' },
@@ -47,8 +68,20 @@ export function Landing() {
 
   const handleGoogleLogin = async () => {
     setLoading(true); setError(null);
-    try { await signInWithPopup(auth, googleProvider); }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : 'Google sign-in was unsuccessful.'); }
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err: unknown) {
+      const code = (err as Partial<AuthError>)?.code;
+      if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirectError: unknown) {
+          setError(googleAuthErrorMessage(redirectError));
+        }
+        return;
+      }
+      setError(googleAuthErrorMessage(err));
+    }
     finally { setLoading(false); }
   };
 

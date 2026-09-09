@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { collection, onSnapshot, query } from 'firebase/firestore';
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { Knock, KnockStatus } from '../types';
+import { SatelliteTileLayer } from '../components/SatelliteTileLayer';
 
 const statusColors: Record<KnockStatus, string> = {
   not_home: '#94a3b8',
@@ -197,12 +198,8 @@ export function KnockManager({ onNavigate }: { onNavigate: (view: string) => voi
             </div>
           </div>
           <div className="knock-map-canvas">
-            <MapContainer center={[39.8283, -98.5795]} zoom={4} zoomControl>
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                maxZoom={19}
-              />
+            <MapContainer className="satellite-map" center={[39.8283, -98.5795]} zoom={4} zoomControl>
+              <SatelliteTileLayer />
               <FitKnockBounds knocks={filteredKnocks} />
               {filteredKnocks.map((knock) => (
                 <Marker key={knock.id} position={[knock.lat, knock.lng]} icon={createIcon(knock.status)}>
