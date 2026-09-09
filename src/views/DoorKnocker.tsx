@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { Knock, KnockStatus } from '../types';
+import { SatelliteTileLayer } from '../components/SatelliteTileLayer';
 import { Navigation, Home, MessageSquare, ClipboardCheck, Loader2, X, Activity, MousePointerClick } from 'lucide-react';
 
 const createIcon = (color: string) => L.divIcon({
@@ -290,18 +291,14 @@ export function DoorKnocker() {
 
       <div className="door-knocker-map">
         <MapContainer 
+          className="satellite-map"
           center={position} 
           zoom={18} 
           style={{ height: '100%', width: '100%', background: '#0a0a0a' }}
           zoomControl={false}
         >
           <MapUpdater center={position} />
-          <TileLayer
-            url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-            attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
-            maxZoom={21}
-            maxNativeZoom={20}
-          />
+          <SatelliteTileLayer />
           <ClickHandler onMapClick={handleMapClick} />
           
           <Marker position={position} icon={createIcon('#ffffff')}>

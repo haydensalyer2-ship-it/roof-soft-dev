@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { collection, onSnapshot, query } from 'firebase/firestore';
@@ -20,6 +20,7 @@ import {
 import { db } from '../lib/firebase';
 import { Knock, KnockStatus } from '../types';
 import { Coordinates, resolveUserLocation } from '../lib/geolocation';
+import { SatelliteTileLayer } from '../components/SatelliteTileLayer';
 
 type TimeFilter = 'today' | '7d' | '30d' | 'all';
 
@@ -298,12 +299,8 @@ export function KnockAnalytics({ onNavigate }: { onNavigate: (view: string) => v
             </div>
           </div>
           <div className="knock-map-canvas">
-            <MapContainer center={userLocation} zoom={14} zoomControl>
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                maxZoom={19}
-              />
+            <MapContainer className="satellite-map" center={userLocation} zoom={17} zoomControl>
+              <SatelliteTileLayer />
               <MapViewport coordinates={userLocation} />
               <Marker position={userLocation} icon={userIcon}>
                 <Popup><div className="knock-popup"><span>Your location</span><strong>{isPreciseLocation ? 'GPS position' : 'Approximate position'}</strong></div></Popup>

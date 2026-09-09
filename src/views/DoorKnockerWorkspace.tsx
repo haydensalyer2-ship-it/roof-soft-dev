@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { db, auth } from '../lib/firebase';
@@ -7,6 +7,7 @@ import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTim
 import { Knock, KnockStatus } from '../types';
 import { Navigation, Home, MessageSquare, ClipboardCheck, Loader2, X, Activity, MousePointerClick } from 'lucide-react';
 import { Coordinates, resolveUserLocation } from '../lib/geolocation';
+import { SatelliteTileLayer } from '../components/SatelliteTileLayer';
 
 const createIcon = (color: string) => L.divIcon({
   html: `<span class="knock-map-marker" style="--marker-color:${color}"></span>`,
@@ -220,17 +221,14 @@ export function DoorKnockerWorkspace() {
 
       <div className="door-knocker-map">
         <MapContainer 
+          className="satellite-map"
           center={position} 
           zoom={18} 
           style={{ height: '100%', width: '100%', background: '#0a0a0a' }}
           zoomControl={false}
         >
           <MapUpdater center={position} />
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            maxZoom={19}
-          />
+          <SatelliteTileLayer />
           <ClickHandler onMapClick={handleMapClick} />
           
           <Marker position={position} icon={userIcon}>
