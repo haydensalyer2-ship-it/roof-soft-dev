@@ -21,9 +21,10 @@ import { db, auth } from '../lib/firebase';
 
 interface NewLeadProps {
   onNavigate: (view: string) => void;
+  organizationId: string;
 }
 
-export function NewLead({ onNavigate }: NewLeadProps) {
+export function NewLead({ onNavigate, organizationId }: NewLeadProps) {
   const [urgency, setUrgency] = useState('standard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export function NewLead({ onNavigate }: NewLeadProps) {
     try {
       await addDoc(collection(db, 'projects'), {
         userId: auth.currentUser.uid,
+        organizationId,
         customer: {
           id: crypto.randomUUID(),
           firstName: formData.firstName,

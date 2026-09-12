@@ -61,7 +61,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
   return null;
 }
 
-export function DoorKnockerWorkspace() {
+export function DoorKnockerWorkspace({ organizationId }: { organizationId: string }) {
   const [knocks, setKnocks] = useState<Knock[]>([]);
   const [position, setPosition] = useState<Coordinates | null>(null);
   const [isLocating, setIsLocating] = useState(true);
@@ -96,7 +96,7 @@ export function DoorKnockerWorkspace() {
 
     const q = query(
       collection(db, 'knocks'),
-      where('userId', '==', auth.currentUser.uid),
+      where('organizationId', '==', organizationId),
       where('createdAt', '>=', startOfToday)
     );
 
@@ -109,7 +109,7 @@ export function DoorKnockerWorkspace() {
     });
 
     return () => unsub();
-  }, []);
+  }, [organizationId]);
 
   const handleMapClick = (lat: number, lng: number) => {
     setNewKnockCoords([lat, lng]);
@@ -131,7 +131,7 @@ export function DoorKnockerWorkspace() {
     if (!auth.currentUser || !newKnockCoords || !selectedStatus) return;
     setIsSaving(true);
     
-    const repName = localStorage.getItem('repName') || auth.currentUser.email || 'Unknown Rep';
+    const repName = auth.currentUser.displayName || auth.currentUser.email || 'Unknown Rep';
 
     try {
       if (selectedKnockId) {
@@ -143,6 +143,7 @@ export function DoorKnockerWorkspace() {
       } else {
         await addDoc(collection(db, 'knocks'), {
           userId: auth.currentUser.uid,
+          organizationId,
           repName,
           lat: newKnockCoords[0],
           lng: newKnockCoords[1],

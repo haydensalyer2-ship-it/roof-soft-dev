@@ -4,6 +4,7 @@ import {
   Loader2, Map, Menu, ShieldCheck, Sparkles, Users, X, Zap,
 } from 'lucide-react';
 import { auth, googleProvider } from '../lib/firebase';
+import { ensureWorkspace } from '../lib/workspace';
 import type { AuthError } from 'firebase/auth';
 import {
   createUserWithEmailAndPassword,
@@ -11,6 +12,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
+  updateProfile,
 } from 'firebase/auth';
 
 const googleAuthErrorMessage = (error: unknown) => {
@@ -45,6 +47,7 @@ export function Landing() {
   const [isLogin, setIsLogin] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +63,11 @@ export function Landing() {
     e.preventDefault(); setLoading(true); setError(null); setMsg(null);
     try {
       if (isLogin) await signInWithEmailAndPassword(auth, email, password);
-      else await createUserWithEmailAndPassword(auth, email, password);
+      else {
+        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(credential.user, { displayName: name.trim() });
+        await ensureWorkspace(credential.user);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'We could not complete your request. Please try again.');
     } finally { setLoading(false); }
@@ -171,6 +178,7 @@ export function Landing() {
             <h3>{isLogin ? 'Welcome back.' : 'Start with Rafter.'}</h3><p>{isLogin ? 'Enter your details to open your command center.' : 'Create your account and bring your operation together.'}</p>
             {error && <div className="auth-alert error">{error}</div>}{msg && <div className="auth-alert success">{msg}</div>}
             <form onSubmit={handleAuth}>
+              {!isLogin && <label>Your full name<input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Alex Morgan" required /></label>}
               <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com" required /></label>
               <label><span>Password {isLogin && <button type="button" onClick={resetPassword}>Forgot password?</button>}</span><input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="At least 6 characters" minLength={6} required /></label>
               <button className="auth-submit" disabled={loading}>{loading ? <Loader2 className="spin"/> : <>{isLogin ? 'Open Rafter' : 'Create my account'} <ArrowRight/></>}</button>
