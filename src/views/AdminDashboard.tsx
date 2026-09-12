@@ -18,13 +18,15 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { Knock, Project, TeamMember } from '../types';
+import { invitationIdForEmail } from '../lib/workspace';
 
 interface AdminDashboardProps {
   projects: Project[];
   onNavigate: (view: string, id?: string) => void;
+  organizationId: string;
 }
 
 type AdminTab = 'overview' | 'team' | 'performance';
@@ -61,7 +63,7 @@ const roleLabel: Record<Role, string> = {
 
 const inputClass = 'w-full rounded-xl border border-white/10 bg-[#111816] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-[#63706b] focus:border-[#83f3bd]/60 focus:ring-2 focus:ring-[#83f3bd]/10';
 
-export function AdminDashboard({ projects, onNavigate }: AdminDashboardProps) {
+export function AdminDashboard({ projects, onNavigate, organizationId }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [knocks, setKnocks] = useState<Knock[]>([]);
@@ -82,38 +84,32 @@ export function AdminDashboard({ projects, onNavigate }: AdminDashboardProps) {
   };
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(query(collection(db, 'knocks')), (snapshot) => {
+    const unsubscribe = onSnapshot(query(collection(db, 'knocks'), where('organizationId', '==', organizationId)), (snapshot) => {
       setKnocks(snapshot.docs.map((snapshotDoc) => ({ id: snapshotDoc.id, ...snapshotDoc.data() } as Knock)));
     });
     return unsubscribe;
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
 
     let unsubscribeTeam = () => undefined;
-    const selfQuery = query(collection(db, 'team'), where('email', '==', user.email));
-    const unsubscribeSelf = onSnapshot(selfQuery, (snapshot) => {
-      unsubscribeTeam();
-      const self = snapshot.docs[0];
-      const selfData = self?.data() as TeamMember | undefined;
-      const ownerId = selfData?.userId || user.uid;
-      setCurrentUserRole(selfData?.role || 'owner');
+    setOrgOwnerId(organizationId);
+    const teamQuery = query(collection(db, 'team'), where('organizationId', '==', organizationId));
+    const unsubscribeSelf = onSnapshot(teamQuery, (teamSnapshot) => {
+      const members = teamSnapshot.docs.map((teamDoc) => ({ id: teamDoc.id, ...teamDoc.data() } as TeamMember));
+      const self = members.find((member) => member.email === user.email);
+      setCurrentUserRole(self?.role || 'owner');
       setCurrentMemberId(self?.id || null);
-      setOrgOwnerId(ownerId);
-
-      const teamQuery = query(collection(db, 'team'), where('userId', '==', ownerId));
-      unsubscribeTeam = onSnapshot(teamQuery, (teamSnapshot) => {
-        setTeamMembers(teamSnapshot.docs.map((teamDoc) => ({ id: teamDoc.id, ...teamDoc.data() } as TeamMember)));
-      });
+      setTeamMembers(members);
     });
 
     return () => {
       unsubscribeSelf();
       unsubscribeTeam();
     };
-  }, []);
+  }, [organizationId]);
 
   const visibleMembers = useMemo(() => teamMembers.filter((member) =>
     currentUserRole === 'owner' || member.id === currentMemberId || member.managerId === currentMemberId
@@ -179,15 +175,26 @@ export function AdminDashboard({ projects, onNavigate }: AdminDashboardProps) {
     event.preventDefault();
     if (!orgOwnerId) return notify('Your organization is still loading. Try again in a moment.');
     try {
+      const invitedEmail = invite.email.trim().toLowerCase();
       await addDoc(collection(db, 'team'), {
         userId: orgOwnerId,
+        organizationId,
         firstName: invite.firstName.trim(),
         lastName: invite.lastName.trim(),
-        email: invite.email.trim().toLowerCase(),
+        email: invitedEmail,
         phone: '',
         role: currentUserRole === 'manager' ? 'sales_rep' : invite.role,
         managerId: currentUserRole === 'manager' ? currentMemberId : invite.managerId,
         status: 'active',
+        createdAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, 'invitations', invitationIdForEmail(invitedEmail)), {
+        organizationId,
+        email: invitedEmail,
+        firstName: invite.firstName.trim(),
+        lastName: invite.lastName.trim(),
+        role: currentUserRole === 'manager' ? 'sales_rep' : invite.role,
+        invitedBy: auth.currentUser?.uid,
         createdAt: new Date().toISOString(),
       });
       notify(`Invitation prepared for ${invite.email}.`);

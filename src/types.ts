@@ -71,6 +71,7 @@ export interface InsuranceClaim {
 export interface TeamMember {
   id: string;
   userId: string; // the organization/admin who owns this rep
+  organizationId?: string;
   managerId?: string; // If this rep is assigned to a manager
   firstName: string;
   lastName: string;
@@ -92,6 +93,7 @@ export interface ProjectDocument {
 export interface Project {
   id: string;
   userId?: string;
+  organizationId?: string;
   repName?: string;
   customer: Customer;
   status: ClaimStatus;
@@ -108,6 +110,7 @@ export type KnockStatus = 'not_home' | 'conversation' | 'inspection' | 'dnc';
 export interface Knock {
   id: string;
   userId: string;
+  organizationId?: string;
   repName?: string;
   lat: number;
   lng: number;

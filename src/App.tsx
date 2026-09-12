@@ -12,51 +12,62 @@ import { Landing } from './views/Landing';
 import { AdminDashboard } from './views/AdminDashboard';
 import { DoorKnockerWorkspace } from './views/DoorKnockerWorkspace';
 import { KnockAnalytics } from './views/KnockAnalytics';
-import { mockProjects as initialMockProjects } from './store/mockData';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Project } from './types';
+import { ensureWorkspace } from './lib/workspace';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [workspaceStorageReady, setWorkspaceStorageReady] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>();
   
   // Shared Branding State
-  const [companyName, setCompanyName] = useState(() => localStorage.getItem('companyName') || 'Rafter AI');
-  const [companyWebsite, setCompanyWebsite] = useState(() => localStorage.getItem('companyWebsite') || 'www.rafter.ai');
-  const [companyPhone, setCompanyPhone] = useState(() => localStorage.getItem('companyPhone') || '1-800-555-0199');
-  const [companyAddress, setCompanyAddress] = useState(() => localStorage.getItem('companyAddress') || '123 Headquarters Road, Suite 100, Cityville, State 12345');
-  const [logoImage, setLogoImage] = useState<string | null>(() => localStorage.getItem('logoImage') || null);
+  const [companyName, setCompanyName] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [logoImage, setLogoImage] = useState<string | null>(null);
   
-  const [repName, setRepName] = useState(() => localStorage.getItem('repName') || 'Mike Builder');
-  const [repPhone, setRepPhone] = useState(() => localStorage.getItem('repPhone') || '(555) 123-4567');
-  const [repEmail, setRepEmail] = useState(() => localStorage.getItem('repEmail') || 'mike@rafter.ai');
-  const [repRole, setRepRole] = useState(() => localStorage.getItem('repRole') || 'Manager');
+  const [repName, setRepName] = useState('');
+  const [repPhone, setRepPhone] = useState('');
+  const [repEmail, setRepEmail] = useState('');
+  const [repRole, setRepRole] = useState('Owner');
 
   // Authentication State
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      setAuthLoading(false);
+      if (!user) { setOrganizationId(null); setAuthLoading(false); return; }
+      try {
+        const profile = await ensureWorkspace(user);
+        setOrganizationId(profile.organizationId);
+        setRepName(profile.displayName);
+        setRepEmail(profile.email);
+        setRepRole(profile.role === 'sales_rep' ? 'Sales Rep' : profile.role[0].toUpperCase() + profile.role.slice(1));
+      } catch (error) {
+        console.error('Unable to load workspace', error);
+      } finally { setAuthLoading(false); }
     });
     return () => unsubscribe();
   }, []);
 
   // Fetch Firestore Projects for current user
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser || !organizationId) {
       setProjects([]);
       return;
     }
 
     const q = query(
       collection(db, 'projects'), 
-      where('userId', '==', currentUser.uid)
+      where('organizationId', '==', organizationId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -75,41 +86,49 @@ export default function App() {
       // Sort local since we might not have a composite index for orderBy('createdAt', 'desc') right now
       fetchedProjects.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       
-      // If none exist, we can merge with our local mock data just for visual demonstration purposes during the preview
-      if (fetchedProjects.length === 0) {
-        setProjects(initialMockProjects);
-      } else {
-        setProjects(fetchedProjects);
-      }
+      setProjects(fetchedProjects);
       
     }, (error) => {
       console.error("Error fetching projects:", error);
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, organizationId]);
 
   useEffect(() => {
-    localStorage.setItem('companyName', companyName);
-    localStorage.setItem('companyWebsite', companyWebsite);
-    localStorage.setItem('companyPhone', companyPhone);
-    localStorage.setItem('companyAddress', companyAddress);
-  }, [companyName, companyWebsite, companyPhone, companyAddress]);
+    if (!organizationId) return;
+    setWorkspaceStorageReady(false);
+    const key = (name: string) => `rafter:${organizationId}:${name}`;
+    setCompanyName(localStorage.getItem(key('companyName')) || '');
+    setCompanyWebsite(localStorage.getItem(key('companyWebsite')) || '');
+    setCompanyPhone(localStorage.getItem(key('companyPhone')) || '');
+    setCompanyAddress(localStorage.getItem(key('companyAddress')) || '');
+    setLogoImage(localStorage.getItem(key('logoImage')));
+    setRepPhone(localStorage.getItem(key('repPhone')) || '');
+    setWorkspaceStorageReady(true);
+  }, [organizationId]);
 
   useEffect(() => {
+    if (!organizationId || !workspaceStorageReady) return;
+    const key = (name: string) => `rafter:${organizationId}:${name}`;
+    localStorage.setItem(key('companyName'), companyName);
+    localStorage.setItem(key('companyWebsite'), companyWebsite);
+    localStorage.setItem(key('companyPhone'), companyPhone);
+    localStorage.setItem(key('companyAddress'), companyAddress);
+  }, [organizationId, workspaceStorageReady, companyName, companyWebsite, companyPhone, companyAddress]);
+
+  useEffect(() => {
+    if (!organizationId || !workspaceStorageReady) return;
     if (logoImage) {
-      localStorage.setItem('logoImage', logoImage);
+      localStorage.setItem(`rafter:${organizationId}:logoImage`, logoImage);
     } else {
-      localStorage.removeItem('logoImage');
+      localStorage.removeItem(`rafter:${organizationId}:logoImage`);
     }
-  }, [logoImage]);
+  }, [organizationId, workspaceStorageReady, logoImage]);
 
   useEffect(() => {
-    localStorage.setItem('repName', repName);
-    localStorage.setItem('repPhone', repPhone);
-    localStorage.setItem('repEmail', repEmail);
-    localStorage.setItem('repRole', repRole);
-  }, [repName, repPhone, repEmail, repRole]);
+    if (organizationId && workspaceStorageReady) localStorage.setItem(`rafter:${organizationId}:repPhone`, repPhone);
+  }, [organizationId, workspaceStorageReady, repPhone]);
 
   const handleNavigate = (view: string, id?: string) => {
     setCurrentView(view);
@@ -152,7 +171,7 @@ export default function App() {
         <Financials projects={projects} onNavigate={handleNavigate} />
       )}
       {currentView === 'new_lead' && (
-        <NewLead onNavigate={handleNavigate} />
+        <NewLead onNavigate={handleNavigate} organizationId={organizationId!} />
       )}
       {currentView === 'generate_report' && (
         <ReportGenerator 
@@ -194,13 +213,13 @@ export default function App() {
         />
       )}
       {currentView === 'door_knocker' && (
-        <DoorKnockerWorkspace />
+        <DoorKnockerWorkspace organizationId={organizationId!} />
       )}
       {currentView === 'knock_manager' && (
-        <KnockAnalytics onNavigate={handleNavigate} />
+        <KnockAnalytics onNavigate={handleNavigate} organizationId={organizationId!} />
       )}
       {currentView === 'admin_dashboard' && (
-        <AdminDashboard projects={projects} onNavigate={handleNavigate} />
+        <AdminDashboard projects={projects} onNavigate={handleNavigate} organizationId={organizationId!} />
       )}
     </Layout>
   );

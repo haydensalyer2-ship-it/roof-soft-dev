@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import {
   CheckCircle2,
@@ -69,7 +69,7 @@ function MapViewport({ coordinates }: { coordinates: Coordinates }) {
   return null;
 }
 
-export function KnockAnalytics({ onNavigate }: { onNavigate: (view: string) => void }) {
+export function KnockAnalytics({ onNavigate, organizationId }: { onNavigate: (view: string) => void; organizationId: string }) {
   const [allKnocks, setAllKnocks] = useState<Knock[]>([]);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('7d');
   const [selectedRep, setSelectedRep] = useState('all');
@@ -80,7 +80,7 @@ export function KnockAnalytics({ onNavigate }: { onNavigate: (view: string) => v
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
-      query(collection(db, 'knocks')),
+      query(collection(db, 'knocks'), where('organizationId', '==', organizationId)),
       (snapshot) => {
         setAllKnocks(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Knock)));
         setLoadError('');
@@ -93,7 +93,7 @@ export function KnockAnalytics({ onNavigate }: { onNavigate: (view: string) => v
       },
     );
     return unsubscribe;
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => {
     resolveUserLocation().then(({ coordinates, precise }) => {
