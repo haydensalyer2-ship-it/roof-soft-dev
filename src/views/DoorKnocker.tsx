@@ -201,7 +201,7 @@ export function DoorKnocker() {
     if (!auth.currentUser || !newKnockCoords || !selectedStatus) return;
     setIsSaving(true);
     
-    const repName = localStorage.getItem('repName') || auth.currentUser.email || 'Unknown Rep';
+    const repName = auth.currentUser.displayName || auth.currentUser.email || 'Unknown Rep';
 
     try {
       if (selectedKnockId) {

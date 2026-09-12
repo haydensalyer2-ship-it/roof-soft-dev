@@ -24,19 +24,39 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function currentOrganizationId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId;
+    }
+
+    function belongsToCurrentOrganization(data) {
+      return isSignedIn() && data.organizationId == currentOrganizationId();
+    }
+
+    function canManageTeam() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['owner', 'manager'];
+    }
+
+    function invitationFor(data) {
+      return get(/databases/$(database)/documents/invitations/$(data.invitationId)).data;
+    }
+
     // Validation Blueprint for User
     function isValidUser(data) {
-      return data.keys().hasAll(['email', 'createdAt'])
+      return data.keys().hasAll(['email', 'organizationId', 'role', 'workspaceVersion', 'createdAt'])
         && data.email is string
         && data.email.size() > 0
         && data.email.size() <= 200
+        && data.organizationId is string
+        && data.role in ['owner', 'manager', 'sales_rep']
+        && data.workspaceVersion == 2
         && data.createdAt is timestamp;
     }
 
     // Validation Blueprint for Project
     function isValidProject(data) {
-      return data.keys().hasAll(['userId', 'customer', 'status', 'createdAt', 'updatedAt'])
+      return data.keys().hasAll(['userId', 'organizationId', 'customer', 'status', 'createdAt', 'updatedAt'])
         && data.userId is string
+        && data.organizationId is string
         && data.status is string
         && data.status.size() > 0
         && data.status.size() <= 50
@@ -46,8 +66,9 @@ service cloud.firestore {
 
     // Validation Blueprint for TeamMember
     function isValidTeamMember(data) {
-      return data.keys().hasAll(['userId', 'firstName', 'lastName', 'email', 'role', 'status', 'createdAt'])
+      return data.keys().hasAll(['userId', 'organizationId', 'firstName', 'lastName', 'email', 'role', 'status', 'createdAt'])
         && data.userId is string
+        && data.organizationId is string
         && data.firstName is string
         && data.firstName.size() <= 50
         && data.lastName is string
@@ -66,42 +87,86 @@ service cloud.firestore {
         && isValidId(userId) 
         && request.auth.uid == userId 
         && isValidUser(incoming())
+        && ((incoming().organizationId == request.auth.uid && incoming().role == 'owner')
+          || (incoming().keys().hasAll(['invitationId'])
+            && invitationFor(incoming()).email == request.auth.token.email
+            && invitationFor(incoming()).organizationId == incoming().organizationId
+            && invitationFor(incoming()).role == incoming().role))
         && incoming().createdAt == request.time;
       allow update: if isSignedIn() 
         && isValidId(userId) 
         && request.auth.uid == userId 
         && isValidUser(incoming())
+        && (incoming().organizationId == existing().organizationId
+          || (!existing().keys().hasAny(['workspaceVersion'])
+            && existing().role == 'owner'
+            && incoming().organizationId == request.auth.uid + '-workspace-v2')
+          || (!existing().keys().hasAny(['organizationId']) && incoming().organizationId == request.auth.uid))
+        && (incoming().role == existing().role
+          || (!existing().keys().hasAny(['role']) && incoming().role == 'owner'))
         && incoming().createdAt == existing().createdAt;
       allow delete: if false; // Users shouldn't be deleted easily
     }
 
+    match /organizations/{organizationId} {
+      allow read: if isSignedIn() && organizationId == currentOrganizationId();
+      allow create: if isSignedIn()
+        && (organizationId == request.auth.uid || organizationId == request.auth.uid + '-workspace-v2')
+        && incoming().ownerId == request.auth.uid && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && organizationId == currentOrganizationId()
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if false;
+    }
+
+    match /invitations/{invitationId} {
+      allow get: if isSignedIn() && (existing().email == request.auth.token.email
+        || belongsToCurrentOrganization(existing()));
+      allow create: if isSignedIn() && canManageTeam()
+        && belongsToCurrentOrganization(incoming())
+        && incoming().email is string
+        && incoming().role in ['manager', 'sales_rep'];
+      allow update: if isSignedIn() && incoming().organizationId == existing().organizationId
+        && ((existing().email == request.auth.token.email
+          && incoming().email == existing().email
+          && incoming().role == existing().role
+          && incoming().acceptedBy == request.auth.uid)
+          || (canManageTeam() && belongsToCurrentOrganization(existing())
+            && belongsToCurrentOrganization(incoming())));
+      allow delete: if canManageTeam() && belongsToCurrentOrganization(existing());
+    }
+
     // Projects Collection
     match /projects/{projectId} {
-      allow read: if isSignedIn();
-      allow list: if isSignedIn();
+      allow read: if belongsToCurrentOrganization(existing());
       
       // Create Project
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && isValidProject(incoming())
+        && belongsToCurrentOrganization(incoming()) && incoming().userId == request.auth.uid;
         
       // Update Project
-      allow update: if isSignedIn();
+      allow update: if belongsToCurrentOrganization(existing()) && isValidProject(incoming())
+        && incoming().organizationId == existing().organizationId;
         
       // Delete Project
-      allow delete: if isSignedIn()
+      allow delete: if belongsToCurrentOrganization(existing())
         && isValidId(projectId);
     }
 
     // Team Collection
     match /team/{teamId} {
-      allow read: if isSignedIn() && isValidId(teamId);
-      allow list: if isSignedIn();
+      allow read: if isValidId(teamId) && belongsToCurrentOrganization(existing());
         
       allow create: if isSignedIn()
+        && canManageTeam()
         && isValidId(teamId)
-        && isValidTeamMember(incoming());
+        && isValidTeamMember(incoming())
+        && belongsToCurrentOrganization(incoming());
         
       allow update: if isSignedIn()
+        && canManageTeam()
         && isValidId(teamId)
+        && belongsToCurrentOrganization(existing())
+        && incoming().organizationId == existing().organizationId
         && incoming().userId == existing().userId
         && incoming().firstName is string && incoming().firstName.size() <= 50
         && incoming().lastName is string && incoming().lastName.size() <= 50
@@ -109,14 +174,15 @@ service cloud.firestore {
         && incoming().role is string
         && incoming().status is string;
         
-      allow delete: if isSignedIn()
+      allow delete: if canManageTeam() && belongsToCurrentOrganization(existing())
         && isValidId(teamId);
     }
 
     // Validation Blueprint for Knock
     function isValidKnock(data) {
-      return data.keys().hasAll(['userId', 'lat', 'lng', 'status', 'createdAt'])
+      return data.keys().hasAll(['userId', 'organizationId', 'lat', 'lng', 'status', 'createdAt'])
         && data.userId is string
+        && data.organizationId is string
         && data.lat is number
         && data.lng is number
         && data.status is string
@@ -128,14 +194,13 @@ service cloud.firestore {
 
     // Knocks Collection
     match /knocks/{knockId} {
-      // In this demo, managers need to see all knocks.
-      // So we allow list/get if signed in. In a real app we'd restrict by org.
-      allow get: if isSignedIn() && isValidId(knockId);
-      allow list: if isSignedIn();
+      allow read: if isValidId(knockId) && belongsToCurrentOrganization(existing());
       
       allow create: if isSignedIn()
         && isValidId(knockId)
         && isValidKnock(incoming())
+        && belongsToCurrentOrganization(incoming())
+        && incoming().userId == request.auth.uid
         && (!incoming().keys().hasAny(['repName']) || (incoming().repName is string && incoming().repName.size() <= 100))
         && (!incoming().keys().hasAny(['notes']) || (incoming().notes is string && incoming().notes.size() <= 1000))
         && (!incoming().keys().hasAny(['address']) || (incoming().address is string && incoming().address.size() <= 200))
@@ -144,12 +209,14 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && isValidId(knockId)
         && isValidKnock(incoming())
+        && belongsToCurrentOrganization(existing())
+        && incoming().organizationId == existing().organizationId
         && (!incoming().keys().hasAny(['repName']) || (incoming().repName is string && incoming().repName.size() <= 100))
         && (!incoming().keys().hasAny(['notes']) || (incoming().notes is string && incoming().notes.size() <= 1000))
         && (!incoming().keys().hasAny(['address']) || (incoming().address is string && incoming().address.size() <= 200))
         && incoming().createdAt == existing().createdAt;
         
-      allow delete: if isSignedIn()
+      allow delete: if belongsToCurrentOrganization(existing())
         && isValidId(knockId);
     }
 

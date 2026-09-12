@@ -165,29 +165,6 @@ export function ProjectDetail({ project, onNavigate }: ProjectDetailProps) {
           status: 'claim_filed'
         },
         updatedAt: serverTimestamp()
-      }).catch(async (err) => {
-        // If the document doesn't exist (e.g. mock project), create it completely
-        if (err.code === 'not-found') {
-          await setDoc(projectRef, {
-            ...project,
-            status: 'claim_filed',
-            claim: {
-              insuranceCompany: 'Unknown Carrier',
-              claimNumber: `CLM-${Math.floor(Math.random() * 100000)}`,
-              dateOfLoss: new Date().toISOString(),
-              policyNumber: 'TBD',
-              rcv: 0,
-              acv: 0,
-              depreciation: 0,
-              deductible: 0,
-              totalCollected: 0,
-              status: 'claim_filed'
-            },
-            updatedAt: serverTimestamp()
-          });
-        } else {
-          throw err;
-        }
       });
       // Optionally could add a toast here
     } catch (error) {
