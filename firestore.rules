@@ -40,6 +40,11 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/invitations/$(data.invitationId)).data;
     }
 
+    function isCleanWorkspaceId(organizationId) {
+      return organizationId == request.auth.uid
+        || organizationId == request.auth.uid + '-workspace-v2';
+    }
+
     // Validation Blueprint for User
     function isValidUser(data) {
       return data.keys().hasAll(['email', 'organizationId', 'role', 'workspaceVersion', 'createdAt'])
@@ -111,7 +116,7 @@ service cloud.firestore {
     match /organizations/{organizationId} {
       allow read: if isSignedIn() && organizationId == currentOrganizationId();
       allow create: if isSignedIn()
-        && (organizationId == request.auth.uid || organizationId == request.auth.uid + '-workspace-v2')
+        && isCleanWorkspaceId(organizationId)
         && incoming().ownerId == request.auth.uid && incoming().createdAt == request.time;
       allow update: if isSignedIn() && organizationId == currentOrganizationId()
         && incoming().ownerId == existing().ownerId;

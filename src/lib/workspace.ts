@@ -10,6 +10,8 @@ export interface UserProfile {
   workspaceVersion: number;
 }
 
+const WORKSPACE_VERSION = 2;
+
 export const invitationIdForEmail = (email: string) => encodeURIComponent(email.trim().toLowerCase());
 
 interface Invitation {
@@ -27,7 +29,7 @@ interface Invitation {
 export async function ensureWorkspace(user: User): Promise<UserProfile> {
   const userRef = doc(db, 'users', user.uid);
   const existing = await getDoc(userRef);
-  if (existing.exists() && existing.data().organizationId && existing.data().workspaceVersion === 2) {
+  if (existing.exists() && existing.data().organizationId && existing.data().workspaceVersion === WORKSPACE_VERSION) {
     const profile = existing.data() as UserProfile;
     const authenticatedName = user.displayName?.trim();
     if (authenticatedName && authenticatedName !== profile.displayName) {
@@ -55,7 +57,7 @@ export async function ensureWorkspace(user: User): Promise<UserProfile> {
   const invitedName = invitation ? `${invitation.firstName} ${invitation.lastName}`.trim() : '';
   const displayName = user.displayName?.trim() || invitedName || email.split('@')[0] || 'Owner';
   const role = invitation?.role || (isExistingRep ? existingProfile.role! : 'owner');
-  const profile: UserProfile = { email, displayName, organizationId, role, workspaceVersion: 2 };
+  const profile: UserProfile = { email, displayName, organizationId, role, workspaceVersion: WORKSPACE_VERSION };
 
   const batch = writeBatch(db);
   if (role === 'owner') {
