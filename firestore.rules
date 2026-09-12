@@ -41,8 +41,9 @@ service cloud.firestore {
     }
 
     function isCleanWorkspaceId(organizationId) {
-      return organizationId == request.auth.uid
-        || organizationId == request.auth.uid + '-workspace-v2';
+      return isValidId(organizationId)
+        && (organizationId == request.auth.uid
+          || organizationId == request.auth.uid + '-workspace-v2');
     }
 
     // Validation Blueprint for User

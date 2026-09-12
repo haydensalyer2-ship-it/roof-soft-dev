@@ -10,7 +10,8 @@ export interface UserProfile {
   workspaceVersion: number;
 }
 
-const WORKSPACE_VERSION = 2;
+/** Must stay aligned with the workspaceVersion validation in firestore.rules. */
+export const WORKSPACE_VERSION = 2 as const;
 
 export const invitationIdForEmail = (email: string) => encodeURIComponent(email.trim().toLowerCase());
 
