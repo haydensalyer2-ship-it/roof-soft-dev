@@ -6,7 +6,7 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { Knock, KnockStatus } from '../types';
 import { Navigation, Home, MessageSquare, ClipboardCheck, Loader2, X, Activity, MousePointerClick, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Coordinates, resolveUserLocation } from '../lib/geolocation';
+import { Coordinates, getInitialLocation, resolveUserLocation } from '../lib/geolocation';
 import { SatelliteTileLayer } from '../components/SatelliteTileLayer';
 
 const createIcon = (color: string) => L.divIcon({
@@ -63,8 +63,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
 
 export function DoorKnockerWorkspace({ organizationId }: { organizationId: string }) {
   const [knocks, setKnocks] = useState<Knock[]>([]);
-  const [position, setPosition] = useState<Coordinates | null>(null);
-  const [isLocating, setIsLocating] = useState(true);
+  const [position, setPosition] = useState<Coordinates>(getInitialLocation);
   const [isPreciseLocation, setIsPreciseLocation] = useState(false);
   
   const [newKnockCoords, setNewKnockCoords] = useState<[number, number] | null>(null);
@@ -82,7 +81,6 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
       if (!isMounted) return;
       setPosition(coordinates);
       setIsPreciseLocation(precise);
-      setIsLocating(false);
     });
 
     return () => {
@@ -93,13 +91,9 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
   useEffect(() => {
     if (!auth.currentUser) return;
     
-    const startOfToday = new Date();
-    startOfToday.setHours(0,0,0,0);
-
     const q = query(
       collection(db, 'knocks'),
-      where('organizationId', '==', organizationId),
-      where('createdAt', '>=', startOfToday)
+      where('organizationId', '==', organizationId)
     );
 
     const unsub = onSnapshot(q, (snap) => {
@@ -192,17 +186,6 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
   const contactsToday = conversationsToday + inspectionsToday;
   const contactRate = doorsToday ? (contactsToday / doorsToday) * 100 : 0;
   const leadRate = contactsToday ? (inspectionsToday / contactsToday) * 100 : 0;
-
-  if (isLocating || !position) {
-    return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-4" />
-          <p className="text-white font-medium">Acquiring GPS Signal...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="door-knocker-shell">

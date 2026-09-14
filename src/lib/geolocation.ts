@@ -18,6 +18,9 @@ const readSavedLocation = (): Coordinates | null => {
   }
 };
 
+/** Gives maps a usable first frame while precise geolocation resolves asynchronously. */
+export const getInitialLocation = (): Coordinates => readSavedLocation() || DEFAULT_LOCATION;
+
 const saveLocation = (coordinates: Coordinates) => {
   localStorage.setItem(LOCATION_KEY, JSON.stringify(coordinates));
 };
@@ -36,7 +39,9 @@ const getBrowserLocation = () => new Promise<Coordinates>((resolve, reject) => {
 });
 
 const getIpLocation = async (): Promise<Coordinates> => {
-  const response = await fetch('https://get.geojs.io/v1/ip/geo.json');
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 4000);
+  const response = await fetch('https://get.geojs.io/v1/ip/geo.json', { signal: controller.signal }).finally(() => window.clearTimeout(timeout));
   if (!response.ok) throw new Error('IP location request failed.');
   const data = await response.json();
   const coordinates: Coordinates = [Number(data.latitude), Number(data.longitude)];
