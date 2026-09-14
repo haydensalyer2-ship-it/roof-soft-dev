@@ -6,7 +6,7 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { Knock, KnockStatus } from '../types';
 import { Navigation, Home, MessageSquare, ClipboardCheck, Loader2, X, Activity, MousePointerClick, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Coordinates, getInitialLocation, resolveUserLocation } from '../lib/geolocation';
+import { Coordinates, resolveUserLocation } from '../lib/geolocation';
 import { SatelliteTileLayer } from '../components/SatelliteTileLayer';
 
 const createIcon = (color: string) => L.divIcon({
@@ -63,7 +63,8 @@ function MapUpdater({ center }: { center: [number, number] }) {
 
 export function DoorKnockerWorkspace({ organizationId }: { organizationId: string }) {
   const [knocks, setKnocks] = useState<Knock[]>([]);
-  const [position, setPosition] = useState<Coordinates>(getInitialLocation);
+  // Render immediately; precise or cached coordinates replace this asynchronously.
+  const [position, setPosition] = useState<Coordinates>([39.8283, -98.5795]);
   const [isPreciseLocation, setIsPreciseLocation] = useState(false);
   
   const [newKnockCoords, setNewKnockCoords] = useState<[number, number] | null>(null);

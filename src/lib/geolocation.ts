@@ -18,9 +18,6 @@ const readSavedLocation = (): Coordinates | null => {
   }
 };
 
-/** Gives maps a usable first frame while precise geolocation resolves asynchronously. */
-export const getInitialLocation = (): Coordinates => readSavedLocation() || DEFAULT_LOCATION;
-
 const saveLocation = (coordinates: Coordinates) => {
   localStorage.setItem(LOCATION_KEY, JSON.stringify(coordinates));
 };
