@@ -9,6 +9,7 @@ import { auth } from '../lib/firebase';
 
 interface SettingsProps {
   onNavigate: (view: string) => void;
+  organizationId: string;
   companyName: string; setCompanyName: (value: string) => void;
   companyWebsite: string; setCompanyWebsite: (value: string) => void;
   companyPhone: string; setCompanyPhone: (value: string) => void;
@@ -24,8 +25,6 @@ type TabId = 'profile' | 'organization' | 'notifications' | 'security' | 'billin
 type Notice = { kind: 'success' | 'error'; text: string } | null;
 
 const inputClass = 'w-full rounded-lg border border-[#333] bg-[#0a0a0a] px-3 py-2.5 text-[13px] text-white outline-none transition focus:border-white focus:ring-1 focus:ring-white placeholder:text-[#525252]';
-const SETTINGS_KEY = 'rafterSettings';
-
 const defaultPreferences = {
   emailNewLead: true,
   emailClaimUpdate: true,
@@ -40,9 +39,9 @@ const defaultPreferences = {
 
 type Preferences = typeof defaultPreferences;
 
-function loadPreferences(): Preferences {
+function loadPreferences(organizationId: string): Preferences {
   try {
-    return { ...defaultPreferences, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
+    return { ...defaultPreferences, ...JSON.parse(localStorage.getItem(`rafter:${organizationId}:settings`) || '{}') };
   } catch {
     return defaultPreferences;
   }
@@ -84,7 +83,7 @@ export function Settings(props: SettingsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('profile');
   const [notice, setNotice] = useState<Notice>(null);
   const [saving, setSaving] = useState(false);
-  const [preferences, setPreferences] = useState<Preferences>(loadPreferences);
+  const [preferences, setPreferences] = useState<Preferences>(() => loadPreferences(props.organizationId));
   const [profile, setProfile] = useState({ name: props.repName, email: props.repEmail, phone: props.repPhone, role: props.repRole });
   const [organization, setOrganization] = useState({ name: props.companyName, website: props.companyWebsite, phone: props.companyPhone, address: props.companyAddress });
   const [logo, setLogo] = useState<string | null>(props.logoImage);
@@ -95,6 +94,10 @@ export function Settings(props: SettingsProps) {
 
   useEffect(() => () => window.clearTimeout(noticeTimer.current), []);
 
+  useEffect(() => {
+    setPreferences(loadPreferences(props.organizationId));
+  }, [props.organizationId]);
+
   const flash = (text: string, kind: Notice['kind'] = 'success') => {
     setNotice({ text, kind });
     window.clearTimeout(noticeTimer.current);
@@ -103,7 +106,7 @@ export function Settings(props: SettingsProps) {
 
   const savePreferences = (next: Preferences, message = 'Preferences saved') => {
     setPreferences(next);
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    localStorage.setItem(`rafter:${props.organizationId}:settings`, JSON.stringify(next));
     flash(message);
   };
 

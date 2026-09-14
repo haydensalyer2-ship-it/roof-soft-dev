@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import {
   CheckCircle2,
@@ -59,7 +59,7 @@ function FitKnockBounds({ knocks }: { knocks: Knock[] }) {
   return null;
 }
 
-export function KnockManager({ onNavigate }: { onNavigate: (view: string) => void }) {
+export function KnockManager({ onNavigate, organizationId }: { onNavigate: (view: string) => void; organizationId: string }) {
   const [allKnocks, setAllKnocks] = useState<Knock[]>([]);
   const [timeFilter, setTimeFilter] = useState<'today' | 'all'>('today');
   const [selectedRep, setSelectedRep] = useState('all');
@@ -68,7 +68,7 @@ export function KnockManager({ onNavigate }: { onNavigate: (view: string) => voi
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
-      query(collection(db, 'knocks')),
+      query(collection(db, 'knocks'), where('organizationId', '==', organizationId)),
       (snapshot) => {
         setAllKnocks(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Knock)));
         setLoadError('');
@@ -81,7 +81,7 @@ export function KnockManager({ onNavigate }: { onNavigate: (view: string) => voi
       },
     );
     return unsubscribe;
-  }, []);
+  }, [organizationId]);
 
   const periodKnocks = useMemo(() => {
     if (timeFilter === 'all') return allKnocks;

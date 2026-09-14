@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, updateDoc, doc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { Knock, KnockStatus } from '../types';
-import { Navigation, Home, MessageSquare, ClipboardCheck, Loader2, X, Activity, MousePointerClick } from 'lucide-react';
+import { Navigation, Home, MessageSquare, ClipboardCheck, Loader2, X, Activity, MousePointerClick, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Coordinates, resolveUserLocation } from '../lib/geolocation';
 import { SatelliteTileLayer } from '../components/SatelliteTileLayer';
 
@@ -73,6 +73,8 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
   const [knockNotes, setKnockNotes] = useState('');
   const [knockAddress, setKnockAddress] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -106,6 +108,10 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
         data.push({ id: doc.id, ...doc.data() } as Knock);
       });
       setKnocks(data);
+      setLoadError('');
+    }, (error) => {
+      console.error('Knocks subscription failed', error);
+      setLoadError('Live activity is temporarily unavailable. Check your connection and try again.');
     });
 
     return () => unsub();
@@ -117,6 +123,7 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
     setSelectedStatus(null);
     setKnockAddress('');
     setKnockNotes('');
+    setSaveMessage('');
   };
 
   const handleMarkerClick = (k: Knock) => {
@@ -130,6 +137,7 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
   const handleSaveKnock = async () => {
     if (!auth.currentUser || !newKnockCoords || !selectedStatus) return;
     setIsSaving(true);
+    setSaveMessage('');
     
     const repName = auth.currentUser.displayName || auth.currentUser.email || 'Unknown Rep';
 
@@ -158,11 +166,13 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
       setSelectedStatus(null);
       setKnockAddress('');
       setKnockNotes('');
+      setSaveMessage(selectedKnockId ? 'Door updated.' : 'Door saved.');
     } catch (e) {
       console.error('Failed to log knock', e);
-      alert('Failed to log door knock.');
+      setSaveMessage('Could not save this door. Your entry is still open—check your connection and retry.');
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false);
   };
 
   const today = new Date();
@@ -179,6 +189,9 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
   const doorsToday = knocksToday.length;
   const conversationsToday = knocksToday.filter(k => k.status === 'conversation').length;
   const inspectionsToday = knocksToday.filter(k => k.status === 'inspection').length;
+  const contactsToday = conversationsToday + inspectionsToday;
+  const contactRate = doorsToday ? (contactsToday / doorsToday) * 100 : 0;
+  const leadRate = contactsToday ? (inspectionsToday / contactsToday) * 100 : 0;
 
   if (isLocating || !position) {
     return (
@@ -216,11 +229,21 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
                <div className="text-[10px] text-emerald-500 uppercase font-bold tracking-wider">Inspections</div>
                <div className="text-xl font-black text-white">{inspectionsToday}</div>
             </div>
+            <div className="px-4 py-2 flex-1 md:flex-none text-center">
+               <div className="text-[10px] text-violet-400 uppercase font-bold tracking-wider">Contact rate</div>
+               <div className="text-xl font-black text-white">{contactRate.toFixed(1)}%</div>
+            </div>
+            <div className="px-4 py-2 flex-1 md:flex-none text-center">
+               <div className="text-[10px] text-amber-400 uppercase font-bold tracking-wider">Lead / contact</div>
+               <div className="text-xl font-black text-white">{leadRate.toFixed(1)}%</div>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="door-knocker-map">
+        {loadError && <div className="door-toast is-error" role="alert"><AlertTriangle />{loadError}</div>}
+        {!loadError && saveMessage && <div className={`door-toast ${saveMessage.startsWith('Could') ? 'is-error' : 'is-success'}`} role="status">{saveMessage.startsWith('Could') ? <AlertTriangle /> : <CheckCircle2 />}{saveMessage}</div>}
         <MapContainer 
           className="satellite-map"
           center={position} 
@@ -242,6 +265,7 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
               position={[k.lat, k.lng]} 
               icon={createIcon(statusColors[k.status])}
               eventHandlers={{ click: () => handleMarkerClick(k) }}
+              bubblingMouseEvents={false}
             >
               <Popup>
                 <div className="knock-popup">
@@ -314,6 +338,7 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
                   type="text"
                   value={knockAddress}
                   onChange={(e) => setKnockAddress(e.target.value)}
+                  maxLength={200}
                   placeholder="House/Street Address (optional)"
                   aria-label="House or street address"
                   className="door-field"
@@ -321,6 +346,7 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
                 <textarea
                   value={knockNotes}
                   onChange={(e) => setKnockNotes(e.target.value)}
+                  maxLength={1000}
                   placeholder="Notes..."
                   aria-label="Door knock notes"
                   className="door-field h-20 resize-none"
@@ -328,6 +354,7 @@ export function DoorKnockerWorkspace({ organizationId }: { organizationId: strin
               </div>
 
               <button
+                type="button"
                 onClick={handleSaveKnock}
                 disabled={!selectedStatus || isSaving}
                 className="door-save-button"

@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Trophy,
   Users,
+  Home,
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { Knock, KnockStatus } from '../types';
@@ -139,10 +140,14 @@ export function KnockAnalytics({ onNavigate, organizationId }: { onNavigate: (vi
 
   const conversations = filteredKnocks.filter((knock) => knock.status === 'conversation').length;
   const inspections = filteredKnocks.filter((knock) => knock.status === 'inspection').length;
-  const conversationRate = filteredKnocks.length ? (conversations / filteredKnocks.length) * 100 : 0;
-  const inspectionRate = conversations ? (inspections / conversations) * 100 : 0;
+  const contacts = conversations + inspections;
+  const conversationRate = filteredKnocks.length ? (contacts / filteredKnocks.length) * 100 : 0;
+  const inspectionRate = contacts ? (inspections / contacts) * 100 : 0;
   const previousConversations = previousKnocks.filter((knock) => knock.status === 'conversation').length;
   const previousInspections = previousKnocks.filter((knock) => knock.status === 'inspection').length;
+  const activeDays = new Set(filteredKnocks.map((knock) => new Date(getKnockTime(knock)).toDateString())).size;
+  const doorsPerActiveDay = filteredKnocks.length / Math.max(1, activeDays);
+  const noAnswerRate = filteredKnocks.length ? (filteredKnocks.filter((knock) => knock.status === 'not_home').length / filteredKnocks.length) * 100 : 0;
 
   const changeFrom = (current: number, previous: number) => {
     if (timeFilter === 'all') return 'Complete history';
@@ -237,12 +242,14 @@ export function KnockAnalytics({ onNavigate, organizationId }: { onNavigate: (vi
 
       {loadError && <div className="knock-alert" role="alert"><RefreshCw size={16} /> {loadError}</div>}
 
-      <section className="knock-kpi-grid" aria-label={`${periodLabel} KPIs`}>
+      <section className="knock-kpi-grid knock-kpi-grid-advanced" aria-label={`${periodLabel} KPIs`}>
         {[
           { label: 'Doors knocked', value: filteredKnocks.length, detail: changeFrom(filteredKnocks.length, previousKnocks.length), icon: Target, tone: 'neutral' },
-          { label: 'Conversations', value: conversations, detail: `${conversationRate.toFixed(1)}% rate · ${changeFrom(conversations, previousConversations)}`, icon: MessageSquare, tone: 'blue' },
+          { label: 'Conversations', value: conversations, detail: changeFrom(conversations, previousConversations), icon: MessageSquare, tone: 'blue' },
           { label: 'Inspections', value: inspections, detail: changeFrom(inspections, previousInspections), icon: CheckCircle2, tone: 'green' },
-          { label: 'Inspection rate', value: `${inspectionRate.toFixed(1)}%`, detail: 'Conversation to inspection', icon: TrendingUp, tone: 'amber' },
+          { label: 'Lead / contact', value: `${inspectionRate.toFixed(1)}%`, detail: 'Contacts becoming inspections', icon: TrendingUp, tone: 'amber' },
+          { label: 'Doors / active day', value: doorsPerActiveDay.toFixed(1), detail: `${activeDays} active ${activeDays === 1 ? 'day' : 'days'}`, icon: CalendarDays, tone: 'violet' },
+          { label: 'No-answer rate', value: `${noAnswerRate.toFixed(1)}%`, detail: 'Follow-up opportunity', icon: Home, tone: 'rose' },
         ].map((metric, index) => (
           <motion.article
             key={metric.label}
@@ -282,7 +289,7 @@ export function KnockAnalytics({ onNavigate, organizationId }: { onNavigate: (vi
         </div>
         <div className="knock-trend-summary">
           <div><span>Average doors / day</span><strong>{(filteredKnocks.length / Math.max(1, timeFilter === 'today' ? 1 : timeFilter === '7d' ? 7 : timeFilter === '30d' ? 30 : trendData.length)).toFixed(1)}</strong></div>
-          <div><span>Conversation rate</span><strong>{conversationRate.toFixed(1)}%</strong></div>
+          <div><span>Contact rate</span><strong>{conversationRate.toFixed(1)}%</strong></div>
           <div><span>Inspection yield</span><strong>{filteredKnocks.length ? ((inspections / filteredKnocks.length) * 100).toFixed(1) : '0.0'}%</strong></div>
           <div><span>Best period</span><strong>{trendData.reduce((best, item) => item.doors > best.doors ? item : best, trendData[0])?.label || '—'}</strong></div>
         </div>
