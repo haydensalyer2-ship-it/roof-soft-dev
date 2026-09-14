@@ -17,8 +17,9 @@ import {
   UserPlus,
   Users,
   X,
+  Trash2,
 } from 'lucide-react';
-import { addDoc, collection, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, onSnapshot, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { Knock, Project, TeamMember } from '../types';
 import { invitationIdForEmail } from '../lib/workspace';
@@ -74,6 +75,8 @@ export function AdminDashboard({ projects, onNavigate, organizationId }: AdminDa
   const [roleFilter, setRoleFilter] = useState<'all' | Role>('all');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [deletingMember, setDeletingMember] = useState<TeamMember | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [invite, setInvite] = useState({ firstName: '', lastName: '', email: '', role: 'sales_rep' as Exclude<Role, 'owner'>, managerId: '' });
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'sales_rep' as Role, status: 'active' as TeamMember['status'], managerId: '' });
@@ -219,6 +222,28 @@ export function AdminDashboard({ projects, onNavigate, organizationId }: AdminDa
     }
   };
 
+  const deleteMember = async () => {
+    if (!deletingMember || deletingMember.role !== 'sales_rep') return;
+    setIsDeleting(true);
+    try {
+      const invitationRef = doc(db, 'invitations', invitationIdForEmail(deletingMember.email));
+      const invitationSnapshot = await getDoc(invitationRef);
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'team', deletingMember.id));
+      // Invitation IDs are deterministic, so deleting it makes this email immediately re-invitable.
+      if (invitationSnapshot.exists()) batch.delete(invitationRef);
+      await batch.commit();
+      notify(`${memberName(deletingMember)} was removed and can be invited again.`);
+      setEditingMember(null);
+      setDeletingMember(null);
+    } catch (error) {
+      console.error('Unable to delete team member', error);
+      notify('We could not remove that sales rep. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const tabs: { id: AdminTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'team', label: 'Team directory' },
@@ -300,7 +325,7 @@ export function AdminDashboard({ projects, onNavigate, organizationId }: AdminDa
 
           <section className="rounded-2xl border border-white/[0.08] bg-[#101412]">
             <SectionHeader eyebrow="Access & ownership" title="Team snapshot" action="Manage team" onAction={() => setActiveTab('team')} />
-            <TeamTable rows={directoryRows.slice(0, 5)} performance={performance} managers={managers} onEdit={openEdit} currentUserRole={currentUserRole} />
+            <TeamTable rows={directoryRows.slice(0, 5)} performance={performance} managers={managers} onEdit={openEdit} onDelete={setDeletingMember} currentUserRole={currentUserRole} />
           </section>
         </div>
       )}
@@ -315,7 +340,7 @@ export function AdminDashboard({ projects, onNavigate, organizationId }: AdminDa
             <label className="relative flex-1"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#63706b]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or email" className={`${inputClass} pl-10`} /></label>
             <label className="relative sm:w-48"><Filter className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#63706b]" /><select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as 'all' | Role)} className={`${inputClass} appearance-none pl-10`}><option value="all">All roles</option><option value="owner">Owners</option><option value="manager">Managers</option><option value="sales_rep">Sales reps</option></select><ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#63706b]" /></label>
           </div>
-          <TeamTable rows={directoryRows} performance={performance} managers={managers} onEdit={openEdit} currentUserRole={currentUserRole} />
+          <TeamTable rows={directoryRows} performance={performance} managers={managers} onEdit={openEdit} onDelete={setDeletingMember} currentUserRole={currentUserRole} />
         </section>
       )}
 
@@ -347,6 +372,8 @@ export function AdminDashboard({ projects, onNavigate, organizationId }: AdminDa
 
       {editingMember && <MemberModal title="Edit team member" subtitle="Update contact details, access, and reporting structure." onClose={() => setEditingMember(null)}><form onSubmit={submitEdit} className="space-y-4"><div className="grid grid-cols-2 gap-3"><Field label="First name"><input required value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} className={inputClass} /></Field><Field label="Last name"><input required value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} className={inputClass} /></Field></div><Field label="Email"><input required type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className={inputClass} /></Field><Field label="Phone"><input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className={inputClass} placeholder="(555) 555-0142" /></Field><div className="grid grid-cols-2 gap-3"><Field label="Role"><select disabled={currentUserRole !== 'owner'} value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value as Role })} className={inputClass}><option value="sales_rep">Sales rep</option><option value="manager">Manager</option><option value="owner">Owner</option></select></Field><Field label="Status"><select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value as TeamMember['status'] })} className={inputClass}><option value="active">Active</option><option value="inactive">Inactive</option></select></Field></div>{editForm.role === 'sales_rep' && currentUserRole === 'owner' && <Field label="Reports to"><select value={editForm.managerId} onChange={(e) => setEditForm({ ...editForm, managerId: e.target.value })} className={inputClass}><option value="">Organization owner</option>{managers.map((manager) => <option key={manager.id} value={manager.id}>{memberName(manager)}</option>)}</select></Field>}<ModalActions onCancel={() => setEditingMember(null)} submitLabel="Save changes" /></form></MemberModal>}
 
+      {deletingMember && <MemberModal title="Remove sales rep?" subtitle="This removes their team profile and clears their invitation so the email can be invited again." onClose={() => !isDeleting && setDeletingMember(null)}><div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4"><p className="font-semibold text-white">{memberName(deletingMember)}</p><p className="mt-1 text-sm text-[#91a09a]">{deletingMember.email}</p><p className="mt-3 text-xs leading-5 text-red-200/80">Historical projects and knock activity will be preserved.</p></div><div className="mt-5 flex justify-end gap-3"><button type="button" disabled={isDeleting} onClick={() => setDeletingMember(null)} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-[#b0bcb7] hover:bg-white/[0.04] disabled:opacity-50">Cancel</button><button type="button" disabled={isDeleting} onClick={deleteMember} className="flex items-center gap-2 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-400 disabled:opacity-50"><Trash2 className="h-4 w-4" />{isDeleting ? 'Removing…' : 'Remove rep'}</button></div></MemberModal>}
+
       {toast && <div className="fixed bottom-6 right-6 z-[10002] flex max-w-sm items-center gap-3 rounded-xl border border-[#83f3bd]/20 bg-[#17231e] px-4 py-3 text-sm font-medium text-white shadow-2xl"><span className="rounded-full bg-[#83f3bd] p-1 text-[#07120d]"><Check className="h-3 w-3" /></span>{toast}</div>}
     </div>
   );
@@ -370,8 +397,8 @@ function PerformanceRow({ rep, rank }: { rep: RepPerformance; rank: number }) {
   return <tr className="transition hover:bg-white/[0.018]"><td className="px-6 py-4"><div className="flex items-center gap-3"><span className="w-4 text-xs font-bold text-[#63706b]">{rank}</span><Avatar name={rep.name} /><div><p className="font-medium text-white">{rep.name}</p><p className="text-xs text-[#63706b]">{rep.member ? roleLabel[rep.member.role] : 'Sales rep'}</p></div></div></td><td className="px-4 py-4 text-sm font-medium text-white">{rep.active}</td><td className="px-4 py-4 text-sm font-medium text-white">{rep.winRate}%</td><td className="px-4 py-4 text-sm font-semibold text-white">{money(rep.pipeline)}</td><td className="px-6 py-4"><div className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-[#83f3bd]" style={{ width: `${Math.max(4, rep.winRate)}%` }} /></div></td></tr>;
 }
 
-function TeamTable({ rows, performance, managers, onEdit, currentUserRole }: { rows: { name: string; member?: TeamMember; role: Role; status: TeamMember['status'] }[]; performance: RepPerformance[]; managers: TeamMember[]; onEdit: (member: TeamMember) => void; currentUserRole: Role }) {
-  return <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left"><thead className="border-b border-white/[0.06] bg-white/[0.018] text-[11px] uppercase tracking-[0.12em] text-[#718079]"><tr><th className="px-6 py-3 font-semibold">Member</th><th className="px-4 py-3 font-semibold">Role</th><th className="px-4 py-3 font-semibold">Reports to</th><th className="px-4 py-3 font-semibold">Pipeline</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-6 py-3 text-right font-semibold">Actions</th></tr></thead><tbody className="divide-y divide-white/[0.05]">{rows.map((row) => { const stats = performance.find((rep) => rep.name === row.name); const manager = managers.find((item) => item.id === row.member?.managerId); return <tr key={row.member?.id || row.name} className="transition hover:bg-white/[0.018]"><td className="px-6 py-4"><div className="flex items-center gap-3"><Avatar name={row.name} /><div><p className="font-medium text-white">{row.name}</p><p className="text-xs text-[#718079]">{row.member?.email || 'Project-assigned teammate'}</p></div></div></td><td className="px-4 py-4"><span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-xs font-medium text-[#b0bcb7]">{roleLabel[row.role]}</span></td><td className="px-4 py-4 text-sm text-[#91a09a]">{manager ? memberName(manager) : row.role === 'owner' ? '—' : 'Organization owner'}</td><td className="px-4 py-4 text-sm font-semibold text-white">{money(stats?.pipeline || 0)}</td><td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${row.status === 'active' ? 'text-[#83f3bd]' : 'text-[#718079]'}`}><span className={`h-1.5 w-1.5 rounded-full ${row.status === 'active' ? 'bg-[#83f3bd]' : 'bg-[#63706b]'}`} />{row.status === 'active' ? 'Active' : 'Inactive'}</span></td><td className="px-6 py-4 text-right">{row.member && currentUserRole !== 'sales_rep' ? <button onClick={() => onEdit(row.member!)} aria-label={`Edit ${row.name}`} className="rounded-lg p-2 text-[#718079] transition hover:bg-white/[0.06] hover:text-white"><Edit3 className="h-4 w-4" /></button> : <button className="rounded-lg p-2 text-[#4e5955]" disabled><MoreHorizontal className="h-4 w-4" /></button>}</td></tr>; })}{!rows.length && <EmptyRow colSpan={6} message="No team members match your filters." />}</tbody></table></div>;
+function TeamTable({ rows, performance, managers, onEdit, onDelete, currentUserRole }: { rows: { name: string; member?: TeamMember; role: Role; status: TeamMember['status'] }[]; performance: RepPerformance[]; managers: TeamMember[]; onEdit: (member: TeamMember) => void; onDelete: (member: TeamMember) => void; currentUserRole: Role }) {
+  return <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left"><thead className="border-b border-white/[0.06] bg-white/[0.018] text-[11px] uppercase tracking-[0.12em] text-[#718079]"><tr><th className="px-6 py-3 font-semibold">Member</th><th className="px-4 py-3 font-semibold">Role</th><th className="px-4 py-3 font-semibold">Reports to</th><th className="px-4 py-3 font-semibold">Pipeline</th><th className="px-4 py-3 font-semibold">Status</th><th className="px-6 py-3 text-right font-semibold">Actions</th></tr></thead><tbody className="divide-y divide-white/[0.05]">{rows.map((row) => { const stats = performance.find((rep) => rep.name === row.name); const manager = managers.find((item) => item.id === row.member?.managerId); return <tr key={row.member?.id || row.name} className="transition hover:bg-white/[0.018]"><td className="px-6 py-4"><div className="flex items-center gap-3"><Avatar name={row.name} /><div><p className="font-medium text-white">{row.name}</p><p className="text-xs text-[#718079]">{row.member?.email || 'Project-assigned teammate'}</p></div></div></td><td className="px-4 py-4"><span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-xs font-medium text-[#b0bcb7]">{roleLabel[row.role]}</span></td><td className="px-4 py-4 text-sm text-[#91a09a]">{manager ? memberName(manager) : row.role === 'owner' ? '—' : 'Organization owner'}</td><td className="px-4 py-4 text-sm font-semibold text-white">{money(stats?.pipeline || 0)}</td><td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${row.status === 'active' ? 'text-[#83f3bd]' : 'text-[#718079]'}`}><span className={`h-1.5 w-1.5 rounded-full ${row.status === 'active' ? 'bg-[#83f3bd]' : 'bg-[#63706b]'}`} />{row.status === 'active' ? 'Active' : 'Inactive'}</span></td><td className="px-6 py-4 text-right">{row.member && currentUserRole !== 'sales_rep' ? <span className="inline-flex items-center gap-1"><button onClick={() => onEdit(row.member!)} aria-label={`Edit ${row.name}`} className="rounded-lg p-2 text-[#718079] transition hover:bg-white/[0.06] hover:text-white"><Edit3 className="h-4 w-4" /></button>{row.role === 'sales_rep' && <button onClick={() => onDelete(row.member!)} aria-label={`Remove ${row.name}`} className="rounded-lg p-2 text-[#718079] transition hover:bg-red-500/10 hover:text-red-400"><Trash2 className="h-4 w-4" /></button>}</span> : <button className="rounded-lg p-2 text-[#4e5955]" disabled><MoreHorizontal className="h-4 w-4" /></button>}</td></tr>; })}{!rows.length && <EmptyRow colSpan={6} message="No team members match your filters." />}</tbody></table></div>;
 }
 
 function MemberModal({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
