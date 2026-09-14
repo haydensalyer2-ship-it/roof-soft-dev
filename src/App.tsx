@@ -17,7 +17,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { Project } from './types';
-import { ensureWorkspace } from './lib/workspace';
+import { ensureWorkspace } from './lib/tenantWorkspace';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);

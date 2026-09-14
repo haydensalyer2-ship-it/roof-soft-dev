@@ -21,7 +21,7 @@ import {
 import { addDoc, collection, doc, onSnapshot, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { Knock, Project, TeamMember } from '../types';
-import { invitationIdForEmail } from '../lib/workspace';
+import { invitationIdForEmail } from '../lib/tenantWorkspace';
 
 interface AdminDashboardProps {
   projects: Project[];

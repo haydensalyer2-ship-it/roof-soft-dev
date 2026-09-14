@@ -1,0 +1,230 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function currentOrganizationId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId;
+    }
+
+    function belongsToCurrentOrganization(data) {
+      return isSignedIn() && data.organizationId == currentOrganizationId();
+    }
+
+    function canManageTeam() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['owner', 'manager'];
+    }
+
+    function invitationFor(data) {
+      return get(/databases/$(database)/documents/invitations/$(data.invitationId)).data;
+    }
+
+    function isCleanWorkspaceId(organizationId) {
+      return isValidId(organizationId)
+        && (organizationId == request.auth.uid
+          || organizationId == request.auth.uid + '-workspace-v2');
+    }
+
+    // Validation Blueprint for User
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'organizationId', 'role', 'workspaceVersion', 'createdAt'])
+        && data.email is string
+        && data.email.size() > 0
+        && data.email.size() <= 200
+        && data.organizationId is string
+        && data.role in ['owner', 'manager', 'sales_rep']
+        && data.workspaceVersion == 2
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint for Project
+    function isValidProject(data) {
+      return data.keys().hasAll(['userId', 'organizationId', 'customer', 'status', 'createdAt', 'updatedAt'])
+        && data.userId is string
+        && data.organizationId is string
+        && data.status is string
+        && data.status.size() > 0
+        && data.status.size() <= 50
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint for TeamMember
+    function isValidTeamMember(data) {
+      return data.keys().hasAll(['userId', 'organizationId', 'firstName', 'lastName', 'email', 'role', 'status', 'createdAt'])
+        && data.userId is string
+        && data.organizationId is string
+        && data.firstName is string
+        && data.firstName.size() <= 50
+        && data.lastName is string
+        && data.lastName.size() <= 50
+        && data.email is string
+        && data.email.size() <= 200
+        && data.role is string
+        && data.status is string
+        && data.createdAt is string; // ISO string used in front end
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow create: if isSignedIn() 
+        && isValidId(userId) 
+        && request.auth.uid == userId 
+        && isValidUser(incoming())
+        && ((incoming().organizationId == request.auth.uid && incoming().role == 'owner')
+          || (incoming().keys().hasAll(['invitationId'])
+            && invitationFor(incoming()).email == request.auth.token.email
+            && invitationFor(incoming()).organizationId == incoming().organizationId
+            && invitationFor(incoming()).role == incoming().role))
+        && incoming().createdAt == request.time;
+      allow update: if isSignedIn() 
+        && isValidId(userId) 
+        && request.auth.uid == userId 
+        && isValidUser(incoming())
+        && (incoming().organizationId == existing().organizationId
+          || (!existing().keys().hasAny(['workspaceVersion'])
+            && existing().role == 'owner'
+            && incoming().organizationId == request.auth.uid + '-workspace-v2')
+          || (!existing().keys().hasAny(['organizationId']) && incoming().organizationId == request.auth.uid))
+        && (incoming().role == existing().role
+          || (!existing().keys().hasAny(['role']) && incoming().role == 'owner'))
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if false; // Users shouldn't be deleted easily
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if isSignedIn() && organizationId == currentOrganizationId();
+      allow create: if isSignedIn()
+        && isCleanWorkspaceId(organizationId)
+        && incoming().ownerId == request.auth.uid && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && organizationId == currentOrganizationId()
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if false;
+    }
+
+    match /invitations/{invitationId} {
+      allow get: if isSignedIn() && (existing().email == request.auth.token.email
+        || belongsToCurrentOrganization(existing()));
+      allow create: if isSignedIn() && canManageTeam()
+        && belongsToCurrentOrganization(incoming())
+        && incoming().email is string
+        && incoming().role in ['manager', 'sales_rep'];
+      allow update: if isSignedIn() && incoming().organizationId == existing().organizationId
+        && ((existing().email == request.auth.token.email
+          && incoming().email == existing().email
+          && incoming().role == existing().role
+          && incoming().acceptedBy == request.auth.uid)
+          || (canManageTeam() && belongsToCurrentOrganization(existing())
+            && belongsToCurrentOrganization(incoming())));
+      allow delete: if canManageTeam() && belongsToCurrentOrganization(existing());
+    }
+
+    // Projects Collection
+    match /projects/{projectId} {
+      allow read: if belongsToCurrentOrganization(existing());
+      
+      // Create Project
+      allow create: if isSignedIn() && isValidProject(incoming())
+        && belongsToCurrentOrganization(incoming()) && incoming().userId == request.auth.uid;
+        
+      // Update Project
+      allow update: if belongsToCurrentOrganization(existing()) && isValidProject(incoming())
+        && incoming().organizationId == existing().organizationId;
+        
+      // Delete Project
+      allow delete: if belongsToCurrentOrganization(existing())
+        && isValidId(projectId);
+    }
+
+    // Team Collection
+    match /team/{teamId} {
+      allow read: if isValidId(teamId) && belongsToCurrentOrganization(existing());
+        
+      allow create: if isSignedIn()
+        && canManageTeam()
+        && isValidId(teamId)
+        && isValidTeamMember(incoming())
+        && belongsToCurrentOrganization(incoming());
+        
+      allow update: if isSignedIn()
+        && canManageTeam()
+        && isValidId(teamId)
+        && belongsToCurrentOrganization(existing())
+        && incoming().organizationId == existing().organizationId
+        && incoming().userId == existing().userId
+        && incoming().firstName is string && incoming().firstName.size() <= 50
+        && incoming().lastName is string && incoming().lastName.size() <= 50
+        && incoming().email is string && incoming().email.size() <= 200
+        && incoming().role is string
+        && incoming().status is string;
+        
+      allow delete: if canManageTeam() && belongsToCurrentOrganization(existing())
+        && isValidId(teamId);
+    }
+
+    // Validation Blueprint for Knock
+    function isValidKnock(data) {
+      return data.keys().hasAll(['userId', 'organizationId', 'lat', 'lng', 'status', 'createdAt'])
+        && data.userId is string
+        && data.organizationId is string
+        && data.lat is number
+        && data.lng is number
+        && data.status is string
+        && data.status.size() > 0
+        && data.status.size() <= 50
+        && data.createdAt is timestamp;
+    }
+
+
+    // Knocks Collection
+    match /knocks/{knockId} {
+      allow read: if isValidId(knockId) && belongsToCurrentOrganization(existing());
+      
+      allow create: if isSignedIn()
+        && isValidId(knockId)
+        && isValidKnock(incoming())
+        && belongsToCurrentOrganization(incoming())
+        && incoming().userId == request.auth.uid
+        && (!incoming().keys().hasAny(['repName']) || (incoming().repName is string && incoming().repName.size() <= 100))
+        && (!incoming().keys().hasAny(['notes']) || (incoming().notes is string && incoming().notes.size() <= 1000))
+        && (!incoming().keys().hasAny(['address']) || (incoming().address is string && incoming().address.size() <= 200))
+        && incoming().createdAt == request.time;
+        
+      allow update: if isSignedIn()
+        && isValidId(knockId)
+        && isValidKnock(incoming())
+        && belongsToCurrentOrganization(existing())
+        && incoming().organizationId == existing().organizationId
+        && (!incoming().keys().hasAny(['repName']) || (incoming().repName is string && incoming().repName.size() <= 100))
+        && (!incoming().keys().hasAny(['notes']) || (incoming().notes is string && incoming().notes.size() <= 1000))
+        && (!incoming().keys().hasAny(['address']) || (incoming().address is string && incoming().address.size() <= 200))
+        && incoming().createdAt == existing().createdAt;
+        
+      allow delete: if belongsToCurrentOrganization(existing())
+        && isValidId(knockId);
+    }
+
+  }
+}

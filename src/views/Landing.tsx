@@ -4,7 +4,7 @@ import {
   Loader2, Map, Menu, ShieldCheck, Sparkles, Users, X, Zap,
 } from 'lucide-react';
 import { auth, googleProvider } from '../lib/firebase';
-import { ensureWorkspace } from '../lib/workspace';
+import { ensureWorkspace } from '../lib/tenantWorkspace';
 import type { AuthError } from 'firebase/auth';
 import {
   createUserWithEmailAndPassword,

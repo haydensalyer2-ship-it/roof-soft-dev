@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-e70ab661-62bb-4b67-9a49-d0d724222cbc",
+      "rules": "firestore.multitenant.rules"
+    }
+  ]
+}
