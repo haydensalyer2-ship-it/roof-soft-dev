@@ -42,18 +42,32 @@ export default function App() {
 
   // Authentication State
   useEffect(() => {
+    let authSequence = 0;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      const sequence = ++authSequence;
+      // Never render one tenant's cached state while a different account is provisioning.
+      setAuthLoading(true);
+      setOrganizationId(null);
+      setProjects([]);
+      setWorkspaceStorageReady(false);
+      setCurrentView('dashboard');
+      setSelectedProjectId(undefined);
       setCurrentUser(user);
       if (!user) { setOrganizationId(null); setAuthLoading(false); return; }
       try {
         const profile = await ensureWorkspace(user);
+        if (sequence !== authSequence) return;
         setOrganizationId(profile.organizationId);
         setRepName(profile.displayName);
         setRepEmail(profile.email);
         setRepRole(profile.role === 'sales_rep' ? 'Sales Rep' : profile.role[0].toUpperCase() + profile.role.slice(1));
       } catch (error) {
+        if (sequence !== authSequence) return;
         console.error('Unable to load workspace', error);
-      } finally { setAuthLoading(false); }
+        setOrganizationId(null);
+      } finally {
+        if (sequence === authSequence) setAuthLoading(false);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -153,6 +167,14 @@ export default function App() {
     return <Landing />;
   }
 
+  if (!organizationId) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 text-center">
+        <div><p className="font-semibold text-white">Workspace unavailable</p><p className="mt-2 text-sm text-neutral-400">We could not securely load your company workspace. Sign out and try again.</p></div>
+      </div>
+    );
+  }
+
   return (
     <Layout currentView={currentView} onNavigate={handleNavigate}>
       {currentView === 'dashboard' && (
@@ -191,6 +213,7 @@ export default function App() {
       )}
       {currentView === 'settings' && (
         <Settings 
+          organizationId={organizationId!}
           onNavigate={handleNavigate} 
           companyName={companyName}
           setCompanyName={setCompanyName}
